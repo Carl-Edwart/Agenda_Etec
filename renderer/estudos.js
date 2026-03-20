@@ -19,7 +19,7 @@ let _sessao      = null
 let _gat         = resetGat()
 let _foto        = null
 let _prova       = null
-let _nivelProva  = null     // objeto de NIVEIS_PROVA ativo
+let _nivelProva  = null
 
 function resetGat() {
   return { video: false, texto: false, foto: false }
@@ -61,12 +61,10 @@ function getNivel(id) {
   return NIVEIS_PROVA.find(n => n.id === id) || NIVEIS_PROVA[0]
 }
 
-/* ── helper: verifica se está em prova ativa ───── */
 function emProvaAtiva() {
   return _prova && !_prova.correcao
 }
 
-/* ── helper: checa se tab é acessível ──────────── */
 function tabAcessivel(tabName) {
   if (!emProvaAtiva() || !_nivelProva) return true
   if (tabName === 'prova') return true
@@ -141,9 +139,8 @@ function renderEstudos() {
   const el = document.getElementById('page-estudos')
   if (!el) return
 
-  // restrições de tab durante prova ativa
-  const pesqDisabled = !_sessao || (emProvaAtiva() && !tabAcessivel('pesquisa'))
-  const estDisabled  = !_sessao || (emProvaAtiva() && !tabAcessivel('estudo'))
+  const pesqDisabled  = !_sessao || (emProvaAtiva() && !tabAcessivel('pesquisa'))
+  const estDisabled   = !_sessao || (emProvaAtiva() && !tabAcessivel('estudo'))
   const provaDisabled = !_sessao || !_prova
 
   el.innerHTML = `
@@ -196,16 +193,12 @@ function renderEstudos() {
             "
             onmouseenter="this.style.borderColor='${n.cor}';this.style.background='${n.cor}10'"
             onmouseleave="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
-
-              <!-- estrelas -->
               <div style="
                 width:44px;height:44px;border-radius:8px;flex-shrink:0;
                 background:${n.cor}15;border:1px solid ${n.cor}44;
                 display:flex;align-items:center;justify-content:center;
                 font-size:14px;color:${n.cor};letter-spacing:2px;
               ">${n.stars}</div>
-
-              <!-- info -->
               <div style="flex:1;min-width:0;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
                   <span style="font-size:13px;font-weight:600;color:${n.cor};text-transform:uppercase;letter-spacing:0.1em;">
@@ -227,8 +220,6 @@ function renderEstudos() {
                   }
                 </div>
               </div>
-
-              <!-- seta -->
               <span style="color:${n.cor};font-size:16px;flex-shrink:0;">›</span>
             </button>
           `).join('')}
@@ -281,8 +272,7 @@ function renderEstudos() {
 }
 
 function tabBtn(val, label, disabled = false) {
-  const active = _estSub === val
-  // se bloqueado por nível, mostra cadeado
+  const active    = _estSub === val
   const bloqueado = emProvaAtiva() && !tabAcessivel(val) && val !== 'prova'
   const isDisabled = disabled || bloqueado
   const extraLabel = bloqueado ? ' 🔒' : ''
@@ -300,121 +290,106 @@ function tabBtn(val, label, disabled = false) {
 /* ══════════════════════════════════════════════════
    SUB-TELA 1 — PESQUISA
 ══════════════════════════════════════════════════ */
-function tplCorrecao(correcaoStr, cor, nv) {
-  let itens = []
-  try { itens = JSON.parse(correcaoStr) } catch {}
-
-  const nota = itens.length
-    ? (itens.reduce((s, q) => s + (Number(q.nota) || 0), 0) / itens.length)
-    : 0
-  const notaFmt  = nota.toFixed(1)
-  const pontFmt  = (nota * nv.multi).toFixed(1)
-  const notaCor  = nota >= 7 ? 'var(--success)' : nota >= 5 ? 'var(--warn)' : 'var(--danger)'
-
-  const prevBest = _sessao?.bestPontuacao || 0
-  const novaPont = nota * nv.multi
-  const ehRecord = novaPont > prevBest
-
-  const rank = nota >= 9.5 ? { t: 'LENDÁRIO', c: 'var(--warn)' }
-             : nota >= 8   ? { t: 'EXCELENTE', c: 'var(--success)' }
-             : nota >= 7   ? { t: 'BOM',       c: 'var(--blue)' }
-             : nota >= 5   ? { t: 'REGULAR',   c: 'var(--gray)' }
-             :               { t: 'PRECISA MELHORAR', c: 'var(--danger)' }
+function tplPesquisa() {
+  const materias  = Store.get().materias || []
+  const historico = Store.get().estudos  || []
 
   return `
-    <!-- HEADER RESULTADO -->
-    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-      <div style="height:3px;width:32px;background:${cor};border-radius:2px;"></div>
-      <span style="font-size:13px;font-weight:500;color:var(--white);">resultado da prova</span>
-      <span style="
-        font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
-        color:${nv.cor};background:${nv.cor}15;border:0.5px solid ${nv.cor}44;
-        padding:3px 10px;border-radius:4px;
-      ">${nv.stars} ${nv.label}</span>
-    </div>
-
-    <!-- PAINEL DE NOTA -->
-    <div style="
-      background:var(--surface);border:1px solid var(--border);border-radius:10px;
-      padding:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;
-      justify-content:center;
-    ">
-      <div style="text-align:center;">
-        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">nota</div>
-        <div style="font-size:42px;font-weight:700;color:${notaCor};line-height:1;">${notaFmt}</div>
-        <div style="font-size:10px;color:${notaCor};opacity:0.7;">/ 10</div>
-      </div>
-      <div style="width:1px;height:60px;background:var(--border);"></div>
-      <div style="text-align:center;">
-        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">multi</div>
-        <div style="font-size:24px;font-weight:600;color:${nv.cor};line-height:1;">×${nv.multi.toFixed(1)}</div>
-        <div style="font-size:10px;color:${nv.cor};opacity:0.7;">${nv.label}</div>
-      </div>
-      <div style="width:1px;height:60px;background:var(--border);"></div>
-      <div style="text-align:center;">
-        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">pontuação</div>
-        <div style="font-size:28px;font-weight:600;color:var(--blue);line-height:1;">${pontFmt}</div>
-        <div style="font-size:10px;color:var(--blue);opacity:0.7;">pts</div>
-      </div>
-      <div style="width:1px;height:60px;background:var(--border);"></div>
-      <div style="text-align:center;">
-        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">rank</div>
-        <div style="font-size:12px;font-weight:600;color:${rank.c};letter-spacing:0.12em;line-height:1.4;">${rank.t}</div>
-        ${ehRecord ? `
-          <div style="
-            margin-top:6px;background:var(--warn)18;border:0.5px solid var(--warn);
-            border-radius:4px;padding:2px 8px;
-            font-size:9px;color:var(--warn);letter-spacing:0.12em;font-weight:600;
-          ">🏆 NOVO RECORDE!</div>
-        ` : `
-          <div style="font-size:9px;color:var(--gray-dim);margin-top:4px;">
-            melhor: ${prevBest > 0 ? prevBest.toFixed(1) + ' pts' : '—'}
-          </div>
-        `}
+    <div class="card">
+      <div class="card-label">nova sessão de estudo</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="form-row">
+          <label class="form-label">matéria *</label>
+          <select id="est-materia" class="input">
+            <option value="">— selecione —</option>
+            ${materias.map(m =>
+              `<option value="${m.id}">${m.nome}${m.sigla ? ` (${m.sigla})` : ''}</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="form-row">
+          <label class="form-label">tema / assunto *</label>
+          <input id="est-tema" class="input" type="text"
+            placeholder="ex: derivadas, segunda guerra, fotossíntese..." />
+        </div>
+        <div class="form-row" style="grid-column:1/-1;">
+          <label class="form-label">contexto adicional <span style="color:var(--gray-dim);">(opcional)</span></label>
+          <textarea id="est-ctx" class="input" rows="2"
+            style="resize:vertical;min-height:48px;font-family:inherit;"
+            placeholder="nível, capítulo, foco específico..."></textarea>
+        </div>
+        <div style="grid-column:1/-1;display:flex;justify-content:flex-end;">
+          <button class="btn btn-primary" id="btn-iniciar">iniciar sessão ›</button>
+        </div>
       </div>
     </div>
 
-    <!-- ★ QUESTÕES — AGORA USA _prova.respostas[i] E _prova.perguntas[i] -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      ${itens.map((q, i) => {
-        const qCor = q.nota >= 7 ? 'var(--success)' : q.nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+    <div class="card">
+      <div class="card-label">histórico de sessões (${historico.length})</div>
+      ${historico.length === 0
+        ? `<div class="empty-state"><div class="empty-state-icon">◈</div><span>nenhuma sessão ainda</span></div>`
+        : `<div style="display:flex;flex-direction:column;gap:6px;">
+            ${historico.slice().reverse().map(s => {
+              const mat = materias.find(m => m.id === s.materiaId)
+              const cor = mat?.cor || '#1a8fff'
+              const bestNivel = s.bestNivel ? getNivel(s.bestNivel) : null
+              return `
+                <div style="
+                  display:flex;align-items:center;gap:10px;padding:8px 10px;
+                  background:var(--surface2);border-radius:6px;border-left:2px solid ${cor};
+                  transition:background 0.15s;
+                ">
+                  <div data-retomar="${s.id}" style="
+                    flex:1;cursor:pointer;display:flex;align-items:center;gap:10px;
+                  "
+                  onmouseenter="this.parentElement.style.background='var(--surface3)'"
+                  onmouseleave="this.parentElement.style.background='var(--surface2)'">
+                    <div style="flex:1;">
+                      <div style="font-size:12px;color:var(--white);font-weight:500;">${s.tema}</div>
+                      <div style="font-size:10px;color:var(--gray);margin-top:2px;">
+                        ${mat ? mat.nome : '—'} · ${new Date(s.criadaEm).toLocaleDateString('pt-BR')}
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                      ${s.bestNota != null ? `
+                        <div style="
+                          display:flex;align-items:center;gap:5px;
+                          background:${bestNivel?.cor || 'var(--gray)'}12;
+                          border:0.5px solid ${bestNivel?.cor || 'var(--gray)'}44;
+                          border-radius:5px;padding:3px 8px;
+                        ">
+                          <span style="font-size:10px;color:var(--warn);">🏆</span>
+                          <span style="font-size:11px;font-weight:600;color:${bestNivel?.cor || 'var(--white)'};">
+                            ${Number(s.bestNota).toFixed(1)}
+                          </span>
+                          <span style="font-size:8px;color:var(--gray);">/ 10</span>
+                          <span style="font-size:9px;color:${bestNivel?.cor || 'var(--gray)'};letter-spacing:0.06em;">
+                            ${bestNivel?.stars || ''}
+                          </span>
+                        </div>
+                        ${s.bestPontuacao != null ? `
+                          <span style="font-size:9px;color:var(--gray-dim);letter-spacing:0.06em;">
+                            ${Number(s.bestPontuacao).toFixed(1)} pts
+                          </span>
+                        ` : ''}
+                      ` : ''}
+                      ${s.provaFeita && s.bestNota == null ? `<span class="badge badge-success" style="font-size:9px;">prova ✓</span>` : ''}
+                      ${s.fotoEnviada ? `<span class="badge" style="font-size:9px;">resumo ✓</span>` : ''}
+                    </div>
+                    <span style="color:var(--gray);">›</span>
+                  </div>
 
-        // ★ PEGA A RESPOSTA REAL DO ALUNO, não a da IA
-        const respostaReal  = (_prova?.respostas?.[i]) || '—'
-        const perguntaReal  = (_prova?.perguntas?.[i]) || q.pergunta || '—'
-
-        return `
-          <div class="card" style="border-left:2px solid ${qCor};">
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-size:10px;color:${cor};letter-spacing:0.15em;text-transform:uppercase;">questão ${i+1}</span>
-              <span style="font-size:12px;font-weight:500;color:${qCor};">${q.nota}/10</span>
-            </div>
-
-            <!-- pergunta original -->
-            <div style="font-size:12px;color:var(--white);margin-bottom:6px;line-height:1.5;
-                        white-space:pre-wrap;">${perguntaReal}</div>
-
-            <!-- ★ RESPOSTA DO ALUNO (original, não alterada) -->
-            <div style="background:var(--surface2);padding:8px 10px;border-radius:5px;margin-bottom:6px;">
-              <div style="font-size:9px;color:var(--gray-dim);letter-spacing:0.1em;
-                          text-transform:uppercase;margin-bottom:3px;">sua resposta</div>
-              <div style="font-size:11px;color:var(--gray);line-height:1.6;
-                          white-space:pre-wrap;">${respostaReal.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-            </div>
-
-            <!-- feedback da IA -->
-            <div>
-              <div style="font-size:9px;color:${qCor};letter-spacing:0.1em;
-                          text-transform:uppercase;margin-bottom:3px;">feedback</div>
-              <div style="font-size:11px;color:var(--gray);line-height:1.6;">${q.feedback}</div>
-            </div>
+                  <button data-deletar-sessao="${s.id}" title="remover sessão" style="
+                    background:transparent;border:none;cursor:pointer;
+                    color:var(--gray-dim);font-size:14px;padding:6px;
+                    border-radius:4px;transition:color 0.15s;flex-shrink:0;
+                  "
+                  onmouseenter="this.style.color='var(--danger)'"
+                  onmouseleave="this.style.color='var(--gray-dim)'">✕</button>
+                </div>`
+            }).join('')}
           </div>`
-      }).join('')}
-    </div>
-
-    <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:12px;">
-      <button class="btn" id="btn-nova-sessao">nova sessão</button>
-      <button class="btn btn-primary" id="btn-salvar-sessao">💾 salvar resultado</button>
+      }
     </div>
   `
 }
@@ -434,7 +409,6 @@ function tplEstudo() {
     !_gat.foto  ? 'enviar resumo'  : null,
   ].filter(Boolean)
 
-  // se está voltando da prova com consulta permitida, mostra aviso
   const voltouDaProva = emProvaAtiva() && _nivelProva
 
   return `
@@ -641,7 +615,7 @@ function renderTexto(txt) {
 }
 
 /* ══════════════════════════════════════════════════
-   SUB-TELA 3 — PROVA (com nível + desistir)
+   SUB-TELA 3 — PROVA
 ══════════════════════════════════════════════════ */
 function tplProva() {
   if (!_prova) return `<div class="empty-state"><div class="empty-state-icon">✦</div><span>nenhuma prova gerada</span></div>`
@@ -653,7 +627,7 @@ function tplProva() {
 
   if (correcao) return tplCorrecao(correcao, cor, nv)
 
-  const nivelCor   = i => {
+  const nivelCor = i => {
     const pct = i / perguntas.length
     if (pct < 0.3)  return 'var(--success)'
     if (pct < 0.6)  return 'var(--blue)'
@@ -731,7 +705,10 @@ function tplProva() {
   `
 }
 
-/* ── CORREÇÃO (com record e game) ─────────────── */
+/* ══════════════════════════════════════════════════
+   CORREÇÃO — USA _prova.respostas[] E _prova.perguntas[]
+   Nunca exibe texto reescrito pela IA como "sua resposta"
+══════════════════════════════════════════════════ */
 function tplCorrecao(correcaoStr, cor, nv) {
   let itens = []
   try { itens = JSON.parse(correcaoStr) } catch {}
@@ -743,12 +720,10 @@ function tplCorrecao(correcaoStr, cor, nv) {
   const pontFmt  = (nota * nv.multi).toFixed(1)
   const notaCor  = nota >= 7 ? 'var(--success)' : nota >= 5 ? 'var(--warn)' : 'var(--danger)'
 
-  // verifica se é novo recorde
   const prevBest = _sessao?.bestPontuacao || 0
   const novaPont = nota * nv.multi
   const ehRecord = novaPont > prevBest
 
-  // rank baseado no resultado
   const rank = nota >= 9.5 ? { t: 'LENDÁRIO', c: 'var(--warn)' }
              : nota >= 8   ? { t: 'EXCELENTE', c: 'var(--success)' }
              : nota >= 7   ? { t: 'BOM',       c: 'var(--blue)' }
@@ -780,7 +755,6 @@ function tplCorrecao(correcaoStr, cor, nv) {
         <div style="font-size:10px;color:${notaCor};opacity:0.7;">/ 10</div>
       </div>
 
-      <!-- SEPARADOR -->
       <div style="width:1px;height:60px;background:var(--border);"></div>
 
       <!-- MULTIPLICADOR -->
@@ -790,7 +764,6 @@ function tplCorrecao(correcaoStr, cor, nv) {
         <div style="font-size:10px;color:${nv.cor};opacity:0.7;">${nv.label}</div>
       </div>
 
-      <!-- SEPARADOR -->
       <div style="width:1px;height:60px;background:var(--border);"></div>
 
       <!-- PONTUAÇÃO -->
@@ -800,7 +773,6 @@ function tplCorrecao(correcaoStr, cor, nv) {
         <div style="font-size:10px;color:var(--blue);opacity:0.7;">pts</div>
       </div>
 
-      <!-- SEPARADOR -->
       <div style="width:1px;height:60px;background:var(--border);"></div>
 
       <!-- RANK -->
@@ -825,19 +797,34 @@ function tplCorrecao(correcaoStr, cor, nv) {
     <div style="display:flex;flex-direction:column;gap:12px;">
       ${itens.map((q, i) => {
         const qCor = q.nota >= 7 ? 'var(--success)' : q.nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+
+        // ★ RESPOSTA E PERGUNTA ORIGINAIS DO ALUNO — nunca da IA
+        const respostaReal = (_prova?.respostas?.[i]) || '—'
+        const perguntaReal = (_prova?.perguntas?.[i]) || '—'
+
         return `
           <div class="card" style="border-left:2px solid ${qCor};">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
               <span style="font-size:10px;color:${cor};letter-spacing:0.15em;text-transform:uppercase;">questão ${i+1}</span>
               <span style="font-size:12px;font-weight:500;color:${qCor};">${q.nota}/10</span>
             </div>
-            <div style="font-size:12px;color:var(--white);margin-bottom:6px;line-height:1.5;white-space:pre-wrap;">${q.pergunta}</div>
+
+            <!-- pergunta original -->
+            <div style="font-size:12px;color:var(--white);margin-bottom:6px;line-height:1.5;
+                        white-space:pre-wrap;">${perguntaReal}</div>
+
+            <!-- ★ resposta do aluno (original, não alterada pela IA) -->
             <div style="background:var(--surface2);padding:8px 10px;border-radius:5px;margin-bottom:6px;">
-              <div style="font-size:9px;color:var(--gray-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">sua resposta</div>
-              <div style="font-size:11px;color:var(--gray);line-height:1.6;">${q.resposta || '—'}</div>
+              <div style="font-size:9px;color:var(--gray-dim);letter-spacing:0.1em;
+                          text-transform:uppercase;margin-bottom:3px;">sua resposta</div>
+              <div style="font-size:11px;color:var(--gray);line-height:1.6;
+                          white-space:pre-wrap;">${respostaReal.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
             </div>
+
+            <!-- feedback da IA -->
             <div>
-              <div style="font-size:9px;color:${qCor};letter-spacing:0.1em;text-transform:uppercase;margin-bottom:3px;">feedback</div>
+              <div style="font-size:9px;color:${qCor};letter-spacing:0.1em;
+                          text-transform:uppercase;margin-bottom:3px;">feedback</div>
               <div style="font-size:11px;color:var(--gray);line-height:1.6;">${q.feedback}</div>
             </div>
           </div>`
@@ -931,7 +918,6 @@ function bindEstudos(sub) {
 
   sub.querySelector('#btn-analisar')?.addEventListener('click', analisarFoto)
 
-  // abre modal de seleção de nível em vez de gerar direto
   const btnProva = sub.querySelector('#btn-ir-prova')
   if (btnProva && !btnProva.disabled) {
     btnProva.addEventListener('click', () => openModal('modal-nivel-prova'))
@@ -1123,7 +1109,7 @@ async function enviarChat() {
     histEl.innerHTML = _sessao.chatHist.map(m => bolha(m.role, m.text)).join('')
     histEl.scrollTop = histEl.scrollHeight
   }
-  if (btnEl)  btnEl.disabled      = true
+  if (btnEl)  btnEl.disabled       = true
   if (loadEl) loadEl.style.display = 'block'
 
   const mat = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
@@ -1139,7 +1125,7 @@ async function enviarChat() {
   }
 
   if (histEl) { histEl.innerHTML = _sessao.chatHist.map(m => bolha(m.role, m.text)).join(''); histEl.scrollTop = histEl.scrollHeight }
-  if (btnEl)  btnEl.disabled      = false
+  if (btnEl)  btnEl.disabled       = false
   if (loadEl) loadEl.style.display = 'none'
 }
 
@@ -1149,7 +1135,6 @@ async function enviarChat() {
 async function gerarProva(nivel) {
   _nivelProva = nivel
 
-  // cria botão de loading temporário
   const el = document.getElementById('est-content')
   if (el) {
     el.innerHTML = `
@@ -1201,8 +1186,7 @@ Exemplo: ["Texto contexto... Enunciado?", ...]`
     _estSub = 'prova'
     renderEstudos()
   } catch (err) {
-    _nivelProva = null
-    _estSub = 'estudo'
+    _nivelProva = null; _estSub = 'estudo'
     renderEstudos()
     alert(`Erro ao gerar prova: ${err.message}`)
   }
@@ -1217,7 +1201,12 @@ function salvarRascunho() {
   })
 }
 
-/* ── ENVIAR PROVA ───────────────────────────────── */
+/* ══════════════════════════════════════════════════
+   ENVIAR PROVA — PROMPT CORRIGIDO
+   • Não pede campo "resposta" no JSON de retorno
+   • Instruções rigorosas para avaliar o que o aluno escreveu
+   • Notas fiéis ao conteúdo real da resposta
+══════════════════════════════════════════════════ */
 async function enviarProva() {
   salvarRascunho()
   if (!_prova || !_sessao) return
@@ -1233,12 +1222,13 @@ async function enviarProva() {
 
   if (btn) { btn.disabled = true; btn.textContent = '⟳ corrigindo...' }
 
-  const mat  = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
+  const mat = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
+
+  // monta pares questão/resposta com labels claros
   const pares = _prova.perguntas.map((p, i) =>
-    `QUESTÃO ${i+1}:\n${p}\n\nRESPOSTA DO ALUNO ${i+1}:\n${_prova.respostas[i]}`
+    `QUESTÃO ${i + 1}:\n${p}\n\nRESPOSTA DO ALUNO ${i + 1}:\n${_prova.respostas[i]}`
   ).join('\n\n---\n\n')
 
-  // ★ PROMPT CORRIGIDO — não pede campo "resposta", exige avaliação fiel
   const prompt = `Você é um corretor rigoroso de provas. Corrija esta prova sobre "${_sessao.tema}" (${mat?.nome || 'geral'}).
 Nível: ${nv.label}
 
@@ -1269,7 +1259,7 @@ APENAS o JSON array, nada mais.`
     _prova.correcao    = match[0]
     _sessao.provaFeita = true
 
-    // ★ CALCULA E SALVA MELHOR NOTA
+    // calcula e salva melhor nota
     let itens = []
     try { itens = JSON.parse(match[0]) } catch {}
     if (itens.length > 0) {

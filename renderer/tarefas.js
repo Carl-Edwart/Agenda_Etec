@@ -31,10 +31,7 @@ let _difAtv = 1
 let _difMat = 1
 const DIF_LABELS = ['', 'fácil', 'fácil+', 'médio', 'difícil', 'muito difícil']
 
-/* ── GERA OPTIONS PROFESSOR×MATÉRIA ─────────────
-   Cada matéria de cada professor vira uma opção separada.
-   Valor: "professorId::materiaId"
-──────────────────────────────────────────────── */
+/* ── GERA OPTIONS PROFESSOR×MATÉRIA ────────────── */
 function tfProfOptions() {
   const profs    = Store.get().professores || []
   const materias = Store.get().materias    || []
@@ -54,7 +51,6 @@ function tfProfOptions() {
   return opts.join('')
 }
 
-/* helper: decodifica valor combinado */
 function tfParseVal(val) {
   if (!val) return { professorId: '', materiaId: '' }
   if (val.includes('::')) {
@@ -64,7 +60,6 @@ function tfParseVal(val) {
   return { professorId: val, materiaId: '' }
 }
 
-/* helper: monta valor combinado */
 function tfBuildVal(t) {
   if (!t?.professorId) return ''
   return `${t.professorId}::${t.materiaId || ''}`
@@ -101,13 +96,13 @@ function renderTarefas() {
   }
 
   el.innerHTML = `
-    <div class="page-header">
+    <div class="page-header" style="flex-shrink:0;">
       <span class="page-title">tarefas</span>
       <button class="btn btn-primary" id="btn-nova-tarefa">+ nova tarefa</button>
     </div>
 
     <!-- FILTROS -->
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0;">
       ${fBtn('todas',    `todas (${cnt.total})`)}
       ${fBtn('pendentes',`pendentes (${cnt.pendentes})`)}
       ${fBtn('concluídas','concluídas')}
@@ -118,8 +113,13 @@ function renderTarefas() {
       ${fBtn('baixa',   '● baixa', 'gray')}
     </div>
 
-    <!-- LISTA -->
-    <div id="lista-tarefas" style="display:flex;flex-direction:column;gap:8px;flex:1;min-height:0;overflow-y:auto;padding-right:4px;">
+    <!-- LISTA — scroll independente, nunca esmaga os cards -->
+    <div id="lista-tarefas" style="
+      display:flex;flex-direction:column;gap:12px;
+      flex:1;min-height:0;
+      overflow-y:auto;
+      padding:4px 6px 4px 0;
+    ">
       ${filtradas.length === 0
         ? `<div class="empty-state" style="flex:1;">
              <div class="empty-state-icon">✓</div>
@@ -277,16 +277,18 @@ function renderTarefas() {
   })
 }
 
-/* ── CARD DE TAREFA ──────────────────────────────── */
+/* ══════════════════════════════════════════════════
+   CARD DE TAREFA — layout espaçoso, nunca espremido
+══════════════════════════════════════════════════ */
 function cardTarefa(t, profs, materias) {
   const prof = profs.find(p => p.id === t.professorId)
 
-  // ★ busca matéria pelo materiaId salvo na tarefa, fallback para prof.materiaId
-  const mat  = t.materiaId
+  const mat = t.materiaId
     ? materias.find(m => m.id === t.materiaId)
     : (prof ? materias.find(m => m.id === prof.materiaId) : null)
 
   const matLabel = mat?.sigla || mat?.nome || prof?.materia || ''
+  const matCor   = mat?.cor   || '#1a8fff'
 
   const barColor =
     t.prio.label === 'crítica' ? 'var(--danger)' :
@@ -295,69 +297,116 @@ function cardTarefa(t, profs, materias) {
 
   return `
     <div style="
-      display:flex;background:var(--surface);
-      border:0.5px solid var(--border);border-radius:8px;
-      overflow:hidden;opacity:${t.done ? '0.45' : '1'};
-      transition:border-color 0.15s,opacity 0.2s;
+      display:flex;
+      background:var(--surface);
+      border:0.5px solid var(--border);
+      border-radius:10px;
+      overflow:hidden;
+      opacity:${t.done ? '0.45' : '1'};
+      transition:border-color 0.18s,opacity 0.2s;
+      flex-shrink:0;
     "
     onmouseenter="this.style.borderColor='var(--border2)'"
     onmouseleave="this.style.borderColor='var(--border)'">
 
       <!-- barra de prioridade -->
-      <div style="width:3px;flex-shrink:0;background:${t.done ? 'var(--gray-dim)' : barColor};"></div>
+      <div style="width:4px;flex-shrink:0;background:${t.done ? 'var(--gray-dim)' : barColor};"></div>
 
-      <!-- checkbox -->
-      <div style="display:flex;align-items:flex-start;padding:14px 10px 14px 14px;">
-        <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''}
-          style="accent-color:var(--blue);cursor:pointer;width:15px;height:15px;margin-top:2px;">
-      </div>
+      <!-- corpo do card -->
+      <div style="
+        flex:1;
+        padding:16px 18px;
+        display:flex;
+        gap:14px;
+        align-items:flex-start;
+        min-width:0;
+      ">
 
-      <!-- info -->
-      <div style="flex:1;padding:12px 8px 12px 0;min-width:0;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">
-          <span style="
-            font-size:13px;font-weight:500;
-            color:${t.done ? 'var(--gray)' : 'var(--white)'};
-            text-decoration:${t.done ? 'line-through' : 'none'};
-          ">${t.titulo}</span>
-          ${!t.done ? `<span class="badge ${t.prio.cls}" style="font-size:8px;">${t.prio.label}</span>` : ''}
+        <!-- checkbox -->
+        <div style="padding-top:2px;flex-shrink:0;">
+          <input type="checkbox" data-toggle="${t.id}" ${t.done ? 'checked' : ''}
+            style="accent-color:var(--blue);cursor:pointer;width:16px;height:16px;">
         </div>
 
-        ${t.descricao
-          ? `<div style="font-size:11px;color:var(--gray);margin-bottom:6px;
-                         line-height:1.5;letter-spacing:0.03em;
-                         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:480px;">
-               ${t.descricao}
-             </div>`
-          : ''}
+        <!-- info principal -->
+        <div style="flex:1;min-width:0;">
 
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          ${matLabel
-            ? `<span class="badge badge-gray" style="font-size:9px;
-                ${mat?.cor ? `background:${mat.cor}18;color:${mat.cor};border-color:${mat.cor}55;` : ''}
-              ">${matLabel}</span>`
-            : ''
-          }
-          ${prof ? `<span style="font-size:10px;color:var(--gray-dim);">prof. ${prof.nome}</span>` : ''}
-          ${t.prazo ? deadlineBadge(t.prazo) : ''}
-          ${!t.done
-            ? `<span style="font-size:10px;color:var(--gray-dim);margin-left:auto;letter-spacing:0.06em;">score ${t.prio.score}/100</span>`
-            : ''}
+          <!-- título + badge prioridade -->
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="
+              font-size:14px;font-weight:500;
+              color:${t.done ? 'var(--gray)' : 'var(--white)'};
+              text-decoration:${t.done ? 'line-through' : 'none'};
+            ">${t.titulo}</span>
+            ${!t.done ? `
+              <span class="badge ${t.prio.cls}" style="font-size:9px;padding:3px 8px;">
+                ${t.prio.label}
+              </span>
+            ` : ''}
+          </div>
+
+          <!-- descrição -->
+          ${t.descricao ? `
+            <div style="
+              font-size:11px;color:var(--gray);
+              margin-bottom:10px;line-height:1.6;
+              letter-spacing:0.03em;
+              display:-webkit-box;-webkit-line-clamp:2;
+              -webkit-box-orient:vertical;overflow:hidden;
+            ">${t.descricao}</div>
+          ` : ''}
+
+          <!-- meta: matéria, professor, prazo, score -->
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            ${matLabel ? `
+              <span class="badge" style="
+                font-size:9px;padding:3px 10px;border-radius:4px;
+                background:${matCor}18;color:${matCor};border-color:${matCor}55;
+              ">${matLabel}</span>
+            ` : ''}
+            ${prof ? `
+              <span style="font-size:10px;color:var(--gray-dim);display:flex;align-items:center;gap:3px;">
+                <span style="opacity:.6;">♟</span> ${prof.nome}
+              </span>
+            ` : ''}
+            ${t.prazo ? deadlineBadge(t.prazo) : ''}
+          </div>
         </div>
-      </div>
 
-      <!-- ações -->
-      <div style="display:flex;flex-direction:column;justify-content:center;gap:2px;padding:8px 12px;">
-        <button data-editar="${t.id}" title="editar" style="
-          background:transparent;border:none;cursor:pointer;color:var(--gray);
-          font-size:14px;padding:5px;border-radius:4px;line-height:1;
-          transition:color 0.15s;
-        " onmouseenter="this.style.color='var(--blue)'" onmouseleave="this.style.color='var(--gray)'">✎</button>
-        <button data-deletar="${t.id}" title="remover" style="
-          background:transparent;border:none;cursor:pointer;color:var(--gray);
-          font-size:14px;padding:5px;border-radius:4px;line-height:1;
-          transition:color 0.15s;
-        " onmouseenter="this.style.color='var(--danger)'" onmouseleave="this.style.color='var(--gray)'">✕</button>
+        <!-- coluna direita: score + ações -->
+        <div style="
+          display:flex;flex-direction:column;
+          align-items:flex-end;gap:10px;
+          flex-shrink:0;padding-top:2px;
+        ">
+          ${!t.done ? `
+            <div style="
+              font-size:10px;color:var(--gray-dim);
+              letter-spacing:0.08em;white-space:nowrap;
+              background:var(--surface2);
+              padding:3px 8px;border-radius:4px;
+              border:0.5px solid var(--border);
+            ">
+              <span style="color:${barColor};font-weight:500;">${t.prio.score}</span>
+              <span style="opacity:.5;">/100</span>
+            </div>
+          ` : ''}
+          <div style="display:flex;gap:6px;">
+            <button data-editar="${t.id}" title="editar" style="
+              background:transparent;border:none;cursor:pointer;color:var(--gray);
+              font-size:15px;padding:5px;border-radius:5px;line-height:1;
+              transition:color 0.15s;
+            " onmouseenter="this.style.color='var(--blue)'"
+               onmouseleave="this.style.color='var(--gray)'">✎</button>
+            <button data-deletar="${t.id}" title="remover" style="
+              background:transparent;border:none;cursor:pointer;color:var(--gray);
+              font-size:15px;padding:5px;border-radius:5px;line-height:1;
+              transition:color 0.15s;
+            " onmouseenter="this.style.color='var(--danger)'"
+               onmouseleave="this.style.color='var(--gray)'">✕</button>
+          </div>
+        </div>
+
       </div>
     </div>
   `
@@ -432,7 +481,6 @@ function abrirModal(id = null) {
   document.getElementById('tf-prazo').value  = t ? (t.prazo || '') : ''
   document.getElementById('modal-tf-titulo').textContent = t ? 'editar tarefa' : 'nova tarefa'
 
-  // ★ restaura valor combinado professorId::materiaId
   document.getElementById('tf-prof').value = t ? tfBuildVal(t) : ''
 
   if (t) {
@@ -474,7 +522,6 @@ function salvarTarefa() {
   const prazo     = document.getElementById('tf-prazo').value
   const rawVal    = document.getElementById('tf-prof').value
 
-  // ★ decodifica professorId + materiaId
   const { professorId, materiaId } = tfParseVal(rawVal)
 
   Store.set(d => {
@@ -482,7 +529,7 @@ function salvarTarefa() {
     const nova = {
       id, titulo, descricao, prazo,
       professorId,
-      materiaId,                           // ★ salva qual matéria específica
+      materiaId,
       difAtividade: _difAtv,
       difMateria:   _difMat,
       done:      idx >= 0 ? d.tarefas[idx].done      : false,
