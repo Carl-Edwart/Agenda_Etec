@@ -1,0 +1,15 @@
+{
+  "name": "agenda-pessoal",
+  "version": "1.0.0",
+  "description": "Agenda pessoal estilo terminal Linux",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "author": "você",
+  "license": "MIT"
+}

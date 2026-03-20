@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agenda</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── SPLASH SCREEN ── -->
+<div id="splash">
+  <div id="splash-inner">
+    <div id="splash-logo">
+      <div id="splash-icon">⌂</div>
+      <div id="splash-name">AGENDA<span>PESSOAL</span></div>
+    </div>
+    <div id="splash-bar-wrap"><div id="splash-bar"></div></div>
+    <div id="splash-status">inicializando...</div>
+  </div>
+</div>
+
+<style>
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0a0a0f;
+  display: flex; align-items: center; justify-content: center;
+  -webkit-app-region: drag;
+  transition: opacity 0.5s ease;
+}
+#splash.hide { opacity: 0; pointer-events: none; }
+
+#splash-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  width: 280px;
+}
+
+#splash-logo {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+
+#splash-icon {
+  font-size: 38px;
+  color: #1a8fff;
+  animation: splashPulse 1.8s ease-in-out infinite;
+}
+@keyframes splashPulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.92); }
+}
+
+#splash-name {
+  font-family: 'Courier New', monospace;
+  font-size: 18px; font-weight: 500;
+  letter-spacing: 0.35em;
+  color: #e8edf5;
+  text-transform: uppercase;
+}
+#splash-name span {
+  color: #1a8fff;
+  margin-left: 2px;
+}
+
+#splash-bar-wrap {
+  width: 100%;
+  height: 2px;
+  background: #1e2a3a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+#splash-bar {
+  height: 100%;
+  width: 0%;
+  background: #1a8fff;
+  border-radius: 2px;
+  transition: width 0.25s ease;
+  box-shadow: 0 0 8px #1a8fff88;
+}
+
+#splash-status {
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #3a4050;
+  min-height: 14px;
+  transition: color 0.2s;
+}
+</style>
+
+<div id="app">
+
+  <!-- TITLEBAR -->
+  <div id="titlebar">
+    <div class="titlebar-dots">
+      <div class="dot dot-red"    onclick="window.api.close()"></div>
+      <div class="dot dot-yellow" onclick="window.api.minimize()"></div>
+      <div class="dot dot-green"  onclick="window.api.maximize()"></div>
+    </div>
+    <div class="titlebar-title">AGENDA PESSOAL <span class="cursor"></span></div>
+    <div class="titlebar-right" style="-webkit-app-region:no-drag;display:flex;align-items:center;gap:10px;">
+
+      <!-- SLIDER DE BRILHO -->
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:10px;color:var(--gray);opacity:0.6;">☼</span>
+        <input id="slider-brilho" type="range" min="40" max="120" value="100" step="2"
+          title="brilho da tela"
+          style="width:72px;height:3px;cursor:pointer;accent-color:var(--blue);opacity:0.7;"
+          oninput="ajustarBrilho(this.value)" />
+        <span style="font-size:10px;color:var(--gray);opacity:0.9;">☀</span>
+      </div>
+
+      <!-- BOTÃO TEMA -->
+      <button id="btn-theme-toggle" onclick="toggleTheme()" title="alternar tema" style="
+        background:transparent;border:0.5px solid var(--border);border-radius:5px;
+        color:var(--gray);cursor:pointer;font-size:13px;
+        padding:3px 8px;transition:all 0.15s;line-height:1;
+      " onmouseenter="this.style.color='var(--blue)';this.style.borderColor='var(--blue-dim)'"
+         onmouseleave="this.style.color='var(--gray)';this.style.borderColor='var(--border)'">◑</button>
+
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div id="body">
+
+    <!-- SIDEBAR -->
+    <nav id="sidebar">
+      <button class="sb-btn active" data-page="home" onclick="navigate('home')">
+        ⌂
+        <span class="sb-tooltip">home</span>
+      </button>
+      <button class="sb-btn" data-page="tarefas" onclick="navigate('tarefas')">
+        ✓
+        <span class="sb-tooltip">tarefas</span>
+      </button>
+      <button class="sb-btn" data-page="calendario" onclick="navigate('calendario')">
+        ◫
+        <span class="sb-tooltip">calendário</span>
+      </button>
+      <button class="sb-btn" data-page="professores" onclick="navigate('professores')">
+        ♟
+        <span class="sb-tooltip">professores</span>
+      </button>
+      <button class="sb-btn" data-page="estudos" onclick="navigate('estudos')">
+        ✎
+        <span class="sb-tooltip">estudos</span>
+      </button>
+      <button class="sb-btn" data-page="horario" onclick="navigate('horario')">
+        ▦
+        <span class="sb-tooltip">horário</span>
+      </button>
+      <div class="sb-spacer"></div>
+      <button class="sb-btn" data-page="config" onclick="navigate('config')">
+        ⚙
+        <span class="sb-tooltip">config</span>
+      </button>
+    </nav>
+
+    <!-- CONTENT -->
+    <div id="content">
+      <div id="page-home"       class="page active"></div>
+      <div id="page-tarefas"    class="page"></div>
+      <div id="page-calendario" class="page"></div>
+      <div id="page-professores"class="page"></div>
+      <div id="page-estudos"    class="page"></div>
+      <div id="page-horario"    class="page"></div>
+      <div id="page-config"     class="page"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script src="renderer/store.js"></script>
+<script src="renderer/home.js"></script>
+<script src="renderer/tarefas.js"></script>
+<script src="renderer/calendario.js"></script>
+<script src="renderer/professores.js"></script>
+<script src="renderer/estudos.js"></script>
+<script src="renderer/horario.js"></script>
+<script src="renderer/config.js"></script>
+<script src="renderer/app.js"></script>
+
+<script>
+/* ── SPLASH CONTROLLER ── */
+const _splashSteps = [
+  { pct: 15,  msg: 'carregando módulos...' },
+  { pct: 35,  msg: 'lendo dados locais...' },
+  { pct: 60,  msg: 'montando interface...' },
+  { pct: 80,  msg: 'aplicando tema...'     },
+  { pct: 95,  msg: 'quase lá...'           },
+  { pct: 100, msg: 'pronto.'               },
+]
+let _splashIdx = 0
+
+function splashTick() {
+  if (_splashIdx >= _splashSteps.length) return
+  const s = _splashSteps[_splashIdx++]
+  document.getElementById('splash-bar').style.width    = s.pct + '%'
+  document.getElementById('splash-status').textContent = s.msg
+}
+
+// avança a barra durante o boot
+const _splashTimer = setInterval(() => {
+  splashTick()
+  if (_splashIdx >= _splashSteps.length) clearInterval(_splashTimer)
+}, 260)
+
+// esconde o splash quando o app estiver pronto
+// app.js chama window._splashDone() após Store.load() + navigate()
+window._splashDone = function () {
+  clearInterval(_splashTimer)
+  document.getElementById('splash-bar').style.width    = '100%'
+  document.getElementById('splash-status').textContent = 'pronto.'
+  setTimeout(() => {
+    const s = document.getElementById('splash')
+    s.classList.add('hide')
+    setTimeout(() => s.remove(), 500)
+  }, 350)
+}
+</script>
+
+</body>
+</html>
