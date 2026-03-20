@@ -1,6 +1,6 @@
 
 
-# README.md (atualizado)
+# README.md
 
 ```markdown
 # 📋 Agenda ETEC
