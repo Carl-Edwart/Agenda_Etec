@@ -27,7 +27,6 @@ async function aiChat(prompt, base64Img = null) {
     'Chave da API não configurada. Vá em ⚙ Config → API Keys.'
   )
 
-  // Cohere não suporta imagem — injeta no prompt se houver
   const finalPrompt = base64Img
     ? `${prompt}\n\n[Imagem: resumo manuscrito enviado pelo aluno. Considere como relevante ao tema e dê feedback construtivo.]`
     : prompt
@@ -63,20 +62,19 @@ async function aiChat(prompt, base64Img = null) {
   const text = data?.message?.content?.[0]?.text
   if (!text) throw new Error('API não retornou conteúdo. Tente novamente.')
 
-  // remove qualquer markdown de formatação da resposta — texto corrido com separadores
   return limparResposta(text)
 }
 
 /* ── limpa markdown da resposta da IA ──────────── */
 function limparResposta(txt) {
   return txt
-    .replace(/#{1,6}\s+/g, '')           // remove # ## ###
-    .replace(/\*\*(.+?)\*\*/g, '$1')     // remove **negrito**
-    .replace(/\*(.+?)\*/g, '$1')         // remove *itálico*
-    .replace(/`{1,3}[^`]*`{1,3}/g, '$1'.replace('$1','')) // remove `código`
-    .replace(/^\s*[-*+]\s+/gm, '— ')    // lista → separador —
-    .replace(/^\s*\d+\.\s+/gm, '')       // remove numeração de lista
-    .replace(/\n{3,}/g, '\n\n')          // colapsa linhas em branco extras
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '$1'.replace('$1',''))
+    .replace(/^\s*[-*+]\s+/gm, '— ')
+    .replace(/^\s*\d+\.\s+/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
 
@@ -101,9 +99,32 @@ function renderEstudos() {
       : _estSub === 'estudo'   ? tplEstudo()
       :                          tplProva()}
     </div>
+
+    <!-- MODAL DELETAR SESSÃO -->
+    <div class="modal-overlay" id="modal-del-sessao">
+      <div class="modal" style="width:360px;">
+        <div class="modal-title">remover sessão</div>
+        <div id="del-sessao-aviso" style="color:var(--gray);font-size:12px;line-height:1.6;"></div>
+        <input type="hidden" id="del-sessao-id" />
+        <div class="form-actions">
+          <button class="btn" id="btn-cancelar-del-sessao">cancelar</button>
+          <button class="btn btn-danger" id="btn-confirmar-del-sessao">remover</button>
+        </div>
+      </div>
+    </div>
   `
 
   bindEstudos(el.querySelector('#est-content'))
+
+  // bind modal deletar sessão
+  const modalDel = el.querySelector('#modal-del-sessao')
+  if (modalDel) {
+    modalDel.addEventListener('click', e => {
+      if (e.target.id === 'modal-del-sessao') closeModal('modal-del-sessao')
+    })
+    el.querySelector('#btn-cancelar-del-sessao').addEventListener('click', () => closeModal('modal-del-sessao'))
+    el.querySelector('#btn-confirmar-del-sessao').addEventListener('click', confirmarDelSessao)
+  }
 }
 
 function tabBtn(val, label, disabled = false) {
@@ -119,7 +140,7 @@ function tabBtn(val, label, disabled = false) {
 }
 
 /* ══════════════════════════════════════════════════
-   SUB-TELA 1 — PESQUISA
+   SUB-TELA 1 — PESQUISA  ←  COM BOTÃO DE EXCLUSÃO
 ══════════════════════════════════════════════════ */
 function tplPesquisa() {
   const materias  = Store.get().materias || []
@@ -156,32 +177,46 @@ function tplPesquisa() {
     </div>
 
     <div class="card">
-      <div class="card-label">histórico de sessões</div>
+      <div class="card-label">histórico de sessões (${historico.length})</div>
       ${historico.length === 0
         ? `<div class="empty-state"><div class="empty-state-icon">◈</div><span>nenhuma sessão ainda</span></div>`
         : `<div style="display:flex;flex-direction:column;gap:6px;">
-            ${historico.slice().reverse().slice(0, 8).map(s => {
+            ${historico.slice().reverse().map(s => {
               const mat = materias.find(m => m.id === s.materiaId)
               const cor = mat?.cor || '#1a8fff'
               return `
-                <div data-retomar="${s.id}" style="
+                <div style="
                   display:flex;align-items:center;gap:10px;padding:8px 10px;
                   background:var(--surface2);border-radius:6px;border-left:2px solid ${cor};
-                  cursor:pointer;transition:background 0.15s;
-                "
-                onmouseenter="this.style.background='var(--surface3)'"
-                onmouseleave="this.style.background='var(--surface2)'">
-                  <div style="flex:1;">
-                    <div style="font-size:12px;color:var(--white);font-weight:500;">${s.tema}</div>
-                    <div style="font-size:10px;color:var(--gray);margin-top:2px;">
-                      ${mat ? mat.nome : '—'} · ${new Date(s.criadaEm).toLocaleDateString('pt-BR')}
+                  transition:background 0.15s;
+                ">
+                  <!-- área clicável para retomar -->
+                  <div data-retomar="${s.id}" style="
+                    flex:1;cursor:pointer;display:flex;align-items:center;gap:10px;
+                  "
+                  onmouseenter="this.parentElement.style.background='var(--surface3)'"
+                  onmouseleave="this.parentElement.style.background='var(--surface2)'">
+                    <div style="flex:1;">
+                      <div style="font-size:12px;color:var(--white);font-weight:500;">${s.tema}</div>
+                      <div style="font-size:10px;color:var(--gray);margin-top:2px;">
+                        ${mat ? mat.nome : '—'} · ${new Date(s.criadaEm).toLocaleDateString('pt-BR')}
+                      </div>
                     </div>
+                    <div style="display:flex;gap:6px;">
+                      ${s.provaFeita  ? `<span class="badge badge-success" style="font-size:9px;">prova ✓</span>` : ''}
+                      ${s.fotoEnviada ? `<span class="badge" style="font-size:9px;">resumo ✓</span>` : ''}
+                    </div>
+                    <span style="color:var(--gray);">›</span>
                   </div>
-                  <div style="display:flex;gap:6px;">
-                    ${s.provaFeita  ? `<span class="badge badge-success" style="font-size:9px;">prova ✓</span>` : ''}
-                    ${s.fotoEnviada ? `<span class="badge" style="font-size:9px;">resumo ✓</span>` : ''}
-                  </div>
-                  <span style="color:var(--gray);">›</span>
+
+                  <!-- BOTÃO EXCLUIR -->
+                  <button data-deletar-sessao="${s.id}" title="remover sessão" style="
+                    background:transparent;border:none;cursor:pointer;
+                    color:var(--gray-dim);font-size:14px;padding:6px;
+                    border-radius:4px;transition:color 0.15s;flex-shrink:0;
+                  "
+                  onmouseenter="this.style.color='var(--danger)'"
+                  onmouseleave="this.style.color='var(--gray-dim)'">✕</button>
                 </div>`
             }).join('')}
           </div>`
@@ -359,7 +394,6 @@ function gat(icon, label, ok) {
 
 function bolha(role, text) {
   const isUser = role === 'user'
-  // texto do usuário — corrido sem markdown; resposta da IA — idem (já limpo pelo aiChat)
   const safeText = text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
   return `
     <div style="display:flex;flex-direction:column;align-items:${isUser ? 'flex-end' : 'flex-start'};">
@@ -376,7 +410,6 @@ function bolha(role, text) {
 }
 
 function renderTexto(txt) {
-  // texto de leitura mantém estrutura visual (headings, listas) mas usa o texto limpo
   return txt
     .replace(/^### (.+)$/gm, '<div style="font-size:11px;color:var(--blue);letter-spacing:0.12em;text-transform:uppercase;margin:14px 0 5px;font-weight:500;">$1</div>')
     .replace(/^## (.+)$/gm,  '<div style="font-size:13px;color:var(--white);margin:14px 0 6px;font-weight:500;border-bottom:0.5px solid var(--border);padding-bottom:4px;">$1</div>')
@@ -511,19 +544,26 @@ function bindEstudos(sub) {
   /* ── PESQUISA ── */
   sub.querySelector('#btn-iniciar')?.addEventListener('click', iniciarSessao)
 
+  // retomar sessão (clique na área de info)
   sub.querySelectorAll('[data-retomar]').forEach(el =>
     el.addEventListener('click', () => retomarSessao(el.dataset.retomar))
   )
 
+  // ★ DELETAR sessão (clique no ✕)
+  sub.querySelectorAll('[data-deletar-sessao]').forEach(btn =>
+    btn.addEventListener('click', e => {
+      e.stopPropagation()  // não dispara retomar
+      pedirDelSessao(btn.dataset.deletarSessao)
+    })
+  )
+
   /* ── ESTUDO ── */
-  // YouTube
   sub.querySelector('#btn-yt')?.addEventListener('click', () => {
     const mat = (Store.get().materias || []).find(m => m.id === _sessao?.materiaId)
     const q   = encodeURIComponent(`${_sessao?.tema || ''} ${mat?.nome || ''} aula`)
     window.api.openExternal(`https://www.youtube.com/results?search_query=${q}`)
   })
 
-  // marcar vídeo — só funciona se ainda não marcado
   const btnVidOk = sub.querySelector('#btn-video-ok')
   if (btnVidOk && !_gat.video) {
     btnVidOk.addEventListener('click', () => {
@@ -532,10 +572,8 @@ function bindEstudos(sub) {
     })
   }
 
-  // gerar texto
   sub.querySelector('#btn-gerar-texto')?.addEventListener('click', gerarTexto)
 
-  // scroll no texto → detecta fim
   const textoEl = sub.querySelector('#est-texto')
   if (textoEl && !_gat.texto) {
     textoEl.addEventListener('scroll', () => {
@@ -546,7 +584,6 @@ function bindEstudos(sub) {
     }, { passive: true })
   }
 
-  // chat
   const btnChat = sub.querySelector('#btn-chat')
   if (btnChat) {
     btnChat.addEventListener('click', enviarChat)
@@ -555,7 +592,6 @@ function bindEstudos(sub) {
     })
   }
 
-  // foto
   sub.querySelector('#est-foto-input')?.addEventListener('change', e => {
     const file = e.target.files[0]
     if (!file) return
@@ -571,7 +607,6 @@ function bindEstudos(sub) {
 
   sub.querySelector('#btn-analisar')?.addEventListener('click', analisarFoto)
 
-  // liberar prova
   const btnProva = sub.querySelector('#btn-ir-prova')
   if (btnProva && !btnProva.disabled) {
     btnProva.addEventListener('click', gerarProva)
@@ -587,6 +622,46 @@ function bindEstudos(sub) {
   })
 
   sub.querySelector('#btn-salvar-sessao')?.addEventListener('click', salvarSessao)
+}
+
+/* ══════════════════════════════════════════════════
+   DELETAR SESSÃO
+══════════════════════════════════════════════════ */
+function pedirDelSessao(id) {
+  const s = (Store.get().estudos || []).find(x => x.id === id)
+  if (!s) return
+
+  document.getElementById('del-sessao-id').value = id
+  document.getElementById('del-sessao-aviso').innerHTML = `
+    Tem certeza que deseja remover a sessão
+    <strong style="color:var(--white);">"${s.tema}"</strong>?
+    ${s.provaFeita
+      ? `<br><br><span style="color:var(--warn);">⚠ Esta sessão tem prova realizada — os dados serão perdidos.</span>`
+      : ''
+    }
+  `
+  openModal('modal-del-sessao')
+}
+
+function confirmarDelSessao() {
+  const id = document.getElementById('del-sessao-id').value
+  if (!id) return
+
+  Store.set(d => {
+    d.estudos = (d.estudos || []).filter(x => x.id !== id)
+  })
+
+  // se a sessão deletada é a ativa, limpa tudo
+  if (_sessao?.id === id) {
+    _sessao = null
+    _gat    = resetGat()
+    _foto   = null
+    _prova  = null
+    _estSub = 'pesquisa'
+  }
+
+  closeModal('modal-del-sessao')
+  renderEstudos()
 }
 
 /* ══════════════════════════════════════════════════
@@ -656,7 +731,6 @@ Estruture com: introdução, conceitos principais, exemplos práticos, resumo.
 Use markdown (# ## ### **negrito** - listas). 400-600 palavras. Português claro.`
 
   try {
-    // texto de leitura preserva markdown para renderTexto() formatar
     const apiKey = (Store.get().user?.geminiKey || '').trim()
     if (!apiKey) throw new Error('Chave da API não configurada.')
 
@@ -674,7 +748,7 @@ Use markdown (# ## ### **negrito** - listas). 400-600 palavras. Português claro
     const texto = data?.message?.content?.[0]?.text
     if (!texto) throw new Error('API não retornou conteúdo.')
 
-    _sessao.textoGerado = texto   // mantém markdown p/ renderTexto()
+    _sessao.textoGerado = texto
     renderEstudos()
   } catch (err) {
     btn.disabled    = false
@@ -698,9 +772,8 @@ async function analisarFoto() {
     const feedback = await aiChat(prompt, _foto)
     _gat.foto            = true
     _sessao.fotoEnviada  = true
-    _foto                = null  // descarta após análise conforme especificado
+    _foto                = null
     renderEstudos()
-    // injeta feedback sem re-render total
     const fb = document.getElementById('foto-feedback')
     if (fb) fb.innerHTML = `<div style="color:var(--success);">${feedback}</div>`
   } catch (err) {
@@ -726,7 +799,6 @@ async function enviarChat() {
   if (!Array.isArray(_sessao.chatHist)) _sessao.chatHist = []
   _sessao.chatHist.push({ role: 'user', text: pergunta })
 
-  // atualiza histórico visual sem re-render total da página
   if (histEl) {
     histEl.style.display = 'flex'
     histEl.innerHTML     = _sessao.chatHist.map(m => bolha(m.role, m.text)).join('')
@@ -784,7 +856,6 @@ Exemplo: ["Texto contexto... Enunciado?", ...]`
   try {
     const resp  = await aiChat(prompt)
     const clean = resp.replace(/```json|```/g, '').trim()
-    // tenta encontrar o array mesmo se vier com texto extra
     const match = clean.match(/\[[\s\S]*\]/)
     if (!match) throw new Error('Resposta fora do formato esperado.')
     const perguntas = JSON.parse(match[0])
