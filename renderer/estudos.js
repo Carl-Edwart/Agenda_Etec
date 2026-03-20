@@ -5,17 +5,74 @@
      1. vídeo marcado como assistido
      2. texto lido até o fim (scroll)
      3. foto do resumo analisada pela IA
+   
+   Níveis de prova (game):
+     fácil    → consulta livre, 5 questões,  ×1.0
+     médio    → só leitura,    8 questões,  ×1.5
+     difícil  → sem consulta,  10 questões, ×2.0
+     hardcore → sem consulta,  10 questões, ×3.0
 ══════════════════════════════════════════════════ */
 
-/* ── ESTADO (módulo-level, nunca global acidental) ─ */
-let _estSub    = 'pesquisa'  // 'pesquisa' | 'estudo' | 'prova'
-let _sessao    = null        // objeto da sessão ativa
-let _gat       = resetGat()  // gatilhos de desbloqueio
-let _foto      = null        // base64 da foto atual (descartada após análise)
-let _prova     = null        // { perguntas[], respostas[], correcao }
+/* ── ESTADO ────────────────────────────────────── */
+let _estSub      = 'pesquisa'
+let _sessao      = null
+let _gat         = resetGat()
+let _foto        = null
+let _prova       = null
+let _nivelProva  = null     // objeto de NIVEIS_PROVA ativo
 
 function resetGat() {
   return { video: false, texto: false, foto: false }
+}
+
+/* ── NÍVEIS DE PROVA ──────────────────────────── */
+const NIVEIS_PROVA = [
+  {
+    id: 'facil', label: 'fácil', stars: '★', cor: 'var(--success)',
+    multi: 1.0, questoes: 5,
+    tabPesquisa: true, tabEstudo: true,
+    desc: 'Consulta livre ao material de estudo e pesquisa',
+    prompt: 'Crie questões de nível fácil/básico, com contextualização simples.'
+  },
+  {
+    id: 'medio', label: 'médio', stars: '★★', cor: 'var(--blue)',
+    multi: 1.5, questoes: 8,
+    tabPesquisa: false, tabEstudo: true,
+    desc: 'Consulta apenas à leitura — sem pesquisa externa',
+    prompt: 'Crie questões de nível médio, com boa contextualização e interdisciplinaridade.'
+  },
+  {
+    id: 'dificil', label: 'difícil', stars: '★★★', cor: 'var(--warn)',
+    multi: 2.0, questoes: 10,
+    tabPesquisa: false, tabEstudo: false,
+    desc: 'Sem consulta — responda apenas de memória',
+    prompt: 'Crie questões difíceis, com contextualização ENEM real, exigindo análise e argumentação.'
+  },
+  {
+    id: 'hardcore', label: 'hardcore', stars: '★★★★', cor: 'var(--danger)',
+    multi: 3.0, questoes: 10,
+    tabPesquisa: false, tabEstudo: false,
+    desc: 'Sem consulta · questões avançadas · sem piedade',
+    prompt: 'Crie questões extremamente difíceis, nível olimpíada/vestibular de ponta. Exija raciocínio profundo, conexões interdisciplinares complexas e argumentação crítica avançada.'
+  },
+]
+
+function getNivel(id) {
+  return NIVEIS_PROVA.find(n => n.id === id) || NIVEIS_PROVA[0]
+}
+
+/* ── helper: verifica se está em prova ativa ───── */
+function emProvaAtiva() {
+  return _prova && !_prova.correcao
+}
+
+/* ── helper: checa se tab é acessível ──────────── */
+function tabAcessivel(tabName) {
+  if (!emProvaAtiva() || !_nivelProva) return true
+  if (tabName === 'prova') return true
+  if (tabName === 'pesquisa') return _nivelProva.tabPesquisa
+  if (tabName === 'estudo')   return _nivelProva.tabEstudo
+  return true
 }
 
 /* ══════════════════════════════════════════════════
@@ -65,13 +122,12 @@ async function aiChat(prompt, base64Img = null) {
   return limparResposta(text)
 }
 
-/* ── limpa markdown da resposta da IA ──────────── */
 function limparResposta(txt) {
   return txt
     .replace(/#{1,6}\s+/g, '')
     .replace(/\*\*(.+?)\*\*/g, '$1')
     .replace(/\*(.+?)\*/g, '$1')
-    .replace(/`{1,3}[^`]*`{1,3}/g, '$1'.replace('$1',''))
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
     .replace(/^\s*[-*+]\s+/gm, '— ')
     .replace(/^\s*\d+\.\s+/gm, '')
     .replace(/\n{3,}/g, '\n\n')
@@ -85,13 +141,23 @@ function renderEstudos() {
   const el = document.getElementById('page-estudos')
   if (!el) return
 
+  // restrições de tab durante prova ativa
+  const pesqDisabled = !_sessao || (emProvaAtiva() && !tabAcessivel('pesquisa'))
+  const estDisabled  = !_sessao || (emProvaAtiva() && !tabAcessivel('estudo'))
+  const provaDisabled = !_sessao || !_prova
+
   el.innerHTML = `
     <div class="page-header">
       <span class="page-title">estudos</span>
-      <div style="display:flex;gap:6px;">
-        ${tabBtn('pesquisa', '◈ pesquisa')}
-        ${tabBtn('estudo',   '▶ estudo',  !_sessao)}
-        ${tabBtn('prova',    '✦ prova',   !_sessao || !_prova)}
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${emProvaAtiva() && _nivelProva ? `
+          <span style="font-size:10px;letter-spacing:0.1em;color:${_nivelProva.cor};margin-right:4px;">
+            ${_nivelProva.stars} ${_nivelProva.label.toUpperCase()}
+          </span>
+        ` : ''}
+        ${tabBtn('pesquisa', '◈ pesquisa', pesqDisabled)}
+        ${tabBtn('estudo',   '▶ estudo',   estDisabled)}
+        ${tabBtn('prova',    '✦ prova',    provaDisabled)}
       </div>
     </div>
     <div id="est-content" style="display:flex;flex-direction:column;gap:16px;overflow-y:auto;padding-right:4px;flex:1;min-height:0;">
@@ -112,115 +178,243 @@ function renderEstudos() {
         </div>
       </div>
     </div>
-  `
 
-  bindEstudos(el.querySelector('#est-content'))
-
-  // bind modal deletar sessão
-  const modalDel = el.querySelector('#modal-del-sessao')
-  if (modalDel) {
-    modalDel.addEventListener('click', e => {
-      if (e.target.id === 'modal-del-sessao') closeModal('modal-del-sessao')
-    })
-    el.querySelector('#btn-cancelar-del-sessao').addEventListener('click', () => closeModal('modal-del-sessao'))
-    el.querySelector('#btn-confirmar-del-sessao').addEventListener('click', confirmarDelSessao)
-  }
-}
-
-function tabBtn(val, label, disabled = false) {
-  const active = _estSub === val
-  return `<button data-tab="${val}" ${disabled ? 'disabled' : ''} style="
-    padding:4px 12px;border-radius:5px;border:0.5px solid;font-family:inherit;
-    font-size:10px;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.15s;
-    background:${active ? 'var(--blue-glow)' : 'transparent'};
-    border-color:${active ? 'var(--blue-dim)' : 'var(--border)'};
-    color:${active ? 'var(--blue)' : disabled ? 'var(--gray-dim)' : 'var(--gray)'};
-    cursor:${disabled ? 'not-allowed' : 'pointer'};
-  ">${label}</button>`
-}
-
-/* ══════════════════════════════════════════════════
-   SUB-TELA 1 — PESQUISA  ←  COM BOTÃO DE EXCLUSÃO
-══════════════════════════════════════════════════ */
-function tplPesquisa() {
-  const materias  = Store.get().materias || []
-  const historico = Store.get().estudos  || []
-
-  return `
-    <div class="card">
-      <div class="card-label">nova sessão de estudo</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div class="form-row">
-          <label class="form-label">matéria *</label>
-          <select id="est-materia" class="input">
-            <option value="">— selecione —</option>
-            ${materias.map(m =>
-              `<option value="${m.id}">${m.nome}${m.sigla ? ` (${m.sigla})` : ''}</option>`
-            ).join('')}
-          </select>
+    <!-- MODAL SELECIONAR NÍVEL -->
+    <div class="modal-overlay" id="modal-nivel-prova">
+      <div class="modal" style="width:480px;max-height:90vh;overflow-y:auto;">
+        <div class="modal-title">escolha o nível da prova</div>
+        <div style="font-size:11px;color:var(--gray);margin-bottom:14px;line-height:1.5;">
+          Níveis mais altos valem mais pontos, mas restringem consulta ao material.
         </div>
-        <div class="form-row">
-          <label class="form-label">tema / assunto *</label>
-          <input id="est-tema" class="input" type="text"
-            placeholder="ex: derivadas, segunda guerra, fotossíntese..." />
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${NIVEIS_PROVA.map(n => `
+            <button data-nivel="${n.id}" style="
+              display:flex;align-items:center;gap:14px;padding:14px 16px;
+              background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+              cursor:pointer;transition:all 0.18s;text-align:left;font-family:inherit;
+              color:var(--white);
+            "
+            onmouseenter="this.style.borderColor='${n.cor}';this.style.background='${n.cor}10'"
+            onmouseleave="this.style.borderColor='var(--border)';this.style.background='var(--surface2)'">
+
+              <!-- estrelas -->
+              <div style="
+                width:44px;height:44px;border-radius:8px;flex-shrink:0;
+                background:${n.cor}15;border:1px solid ${n.cor}44;
+                display:flex;align-items:center;justify-content:center;
+                font-size:14px;color:${n.cor};letter-spacing:2px;
+              ">${n.stars}</div>
+
+              <!-- info -->
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                  <span style="font-size:13px;font-weight:600;color:${n.cor};text-transform:uppercase;letter-spacing:0.1em;">
+                    ${n.label}
+                  </span>
+                  <span style="font-size:9px;color:var(--gray);letter-spacing:0.08em;">
+                    ${n.questoes} questões · ×${n.multi.toFixed(1)}
+                  </span>
+                </div>
+                <div style="font-size:10px;color:var(--gray);line-height:1.4;">${n.desc}</div>
+                <div style="display:flex;gap:8px;margin-top:4px;">
+                  ${n.tabPesquisa
+                    ? `<span style="font-size:9px;color:var(--success);letter-spacing:0.06em;">✓ pesquisa</span>`
+                    : `<span style="font-size:9px;color:var(--danger);letter-spacing:0.06em;opacity:0.7;">✕ pesquisa</span>`
+                  }
+                  ${n.tabEstudo
+                    ? `<span style="font-size:9px;color:var(--success);letter-spacing:0.06em;">✓ leitura</span>`
+                    : `<span style="font-size:9px;color:var(--danger);letter-spacing:0.06em;opacity:0.7;">✕ leitura</span>`
+                  }
+                </div>
+              </div>
+
+              <!-- seta -->
+              <span style="color:${n.cor};font-size:16px;flex-shrink:0;">›</span>
+            </button>
+          `).join('')}
         </div>
-        <div class="form-row" style="grid-column:1/-1;">
-          <label class="form-label">contexto adicional <span style="color:var(--gray-dim);">(opcional)</span></label>
-          <textarea id="est-ctx" class="input" rows="2"
-            style="resize:vertical;min-height:48px;font-family:inherit;"
-            placeholder="nível, capítulo, foco específico..."></textarea>
-        </div>
-        <div style="grid-column:1/-1;display:flex;justify-content:flex-end;">
-          <button class="btn btn-primary" id="btn-iniciar">iniciar sessão ›</button>
+        <div class="form-actions" style="margin-top:8px;">
+          <button class="btn" id="btn-cancelar-nivel">cancelar</button>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-label">histórico de sessões (${historico.length})</div>
-      ${historico.length === 0
-        ? `<div class="empty-state"><div class="empty-state-icon">◈</div><span>nenhuma sessão ainda</span></div>`
-        : `<div style="display:flex;flex-direction:column;gap:6px;">
-            ${historico.slice().reverse().map(s => {
-              const mat = materias.find(m => m.id === s.materiaId)
-              const cor = mat?.cor || '#1a8fff'
-              return `
-                <div style="
-                  display:flex;align-items:center;gap:10px;padding:8px 10px;
-                  background:var(--surface2);border-radius:6px;border-left:2px solid ${cor};
-                  transition:background 0.15s;
-                ">
-                  <!-- área clicável para retomar -->
-                  <div data-retomar="${s.id}" style="
-                    flex:1;cursor:pointer;display:flex;align-items:center;gap:10px;
-                  "
-                  onmouseenter="this.parentElement.style.background='var(--surface3)'"
-                  onmouseleave="this.parentElement.style.background='var(--surface2)'">
-                    <div style="flex:1;">
-                      <div style="font-size:12px;color:var(--white);font-weight:500;">${s.tema}</div>
-                      <div style="font-size:10px;color:var(--gray);margin-top:2px;">
-                        ${mat ? mat.nome : '—'} · ${new Date(s.criadaEm).toLocaleDateString('pt-BR')}
-                      </div>
-                    </div>
-                    <div style="display:flex;gap:6px;">
-                      ${s.provaFeita  ? `<span class="badge badge-success" style="font-size:9px;">prova ✓</span>` : ''}
-                      ${s.fotoEnviada ? `<span class="badge" style="font-size:9px;">resumo ✓</span>` : ''}
-                    </div>
-                    <span style="color:var(--gray);">›</span>
-                  </div>
+    <!-- MODAL DESISTIR DA PROVA -->
+    <div class="modal-overlay" id="modal-desistir-prova">
+      <div class="modal" style="width:340px;">
+        <div class="modal-title">desistir da prova?</div>
+        <div style="color:var(--gray);font-size:12px;line-height:1.6;">
+          Suas respostas serão perdidas e nenhuma nota será salva.
+          Você pode tentar novamente depois.
+        </div>
+        <div class="form-actions">
+          <button class="btn" id="btn-continuar-prova">continuar prova</button>
+          <button class="btn btn-danger" id="btn-confirmar-desistir">desistir</button>
+        </div>
+      </div>
+    </div>
+  `
 
-                  <!-- BOTÃO EXCLUIR -->
-                  <button data-deletar-sessao="${s.id}" title="remover sessão" style="
-                    background:transparent;border:none;cursor:pointer;
-                    color:var(--gray-dim);font-size:14px;padding:6px;
-                    border-radius:4px;transition:color 0.15s;flex-shrink:0;
-                  "
-                  onmouseenter="this.style.color='var(--danger)'"
-                  onmouseleave="this.style.color='var(--gray-dim)'">✕</button>
-                </div>`
-            }).join('')}
+  bindEstudos(el.querySelector('#est-content'))
+
+  // bind modais
+  const bindModal = (id, cancelBtn, confirmBtn, onConfirm) => {
+    const overlay = el.querySelector(`#${id}`)
+    if (!overlay) return
+    overlay.addEventListener('click', e => { if (e.target.id === id) closeModal(id) })
+    if (cancelBtn)  el.querySelector(cancelBtn)?.addEventListener('click',  () => closeModal(id))
+    if (confirmBtn) el.querySelector(confirmBtn)?.addEventListener('click', onConfirm)
+  }
+
+  bindModal('modal-del-sessao',     '#btn-cancelar-del-sessao',  '#btn-confirmar-del-sessao',  confirmarDelSessao)
+  bindModal('modal-nivel-prova',    '#btn-cancelar-nivel',        null,                         null)
+  bindModal('modal-desistir-prova', '#btn-continuar-prova',       '#btn-confirmar-desistir',    confirmarDesistir)
+
+  // bind nivel buttons
+  el.querySelectorAll('[data-nivel]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      closeModal('modal-nivel-prova')
+      const nivel = getNivel(btn.dataset.nivel)
+      gerarProva(nivel)
+    })
+  })
+}
+
+function tabBtn(val, label, disabled = false) {
+  const active = _estSub === val
+  // se bloqueado por nível, mostra cadeado
+  const bloqueado = emProvaAtiva() && !tabAcessivel(val) && val !== 'prova'
+  const isDisabled = disabled || bloqueado
+  const extraLabel = bloqueado ? ' 🔒' : ''
+  return `<button data-tab="${val}" ${isDisabled ? 'disabled' : ''} style="
+    padding:4px 12px;border-radius:5px;border:0.5px solid;font-family:inherit;
+    font-size:10px;letter-spacing:0.1em;text-transform:uppercase;transition:all 0.15s;
+    background:${active ? 'var(--blue-glow)' : 'transparent'};
+    border-color:${active ? 'var(--blue-dim)' : 'var(--border)'};
+    color:${active ? 'var(--blue)' : isDisabled ? 'var(--gray-dim)' : 'var(--gray)'};
+    cursor:${isDisabled ? 'not-allowed' : 'pointer'};
+  " title="${bloqueado ? 'bloqueado no nível ' + (_nivelProva?.label || '') : ''}"
+  >${label}${extraLabel}</button>`
+}
+
+/* ══════════════════════════════════════════════════
+   SUB-TELA 1 — PESQUISA
+══════════════════════════════════════════════════ */
+function tplCorrecao(correcaoStr, cor, nv) {
+  let itens = []
+  try { itens = JSON.parse(correcaoStr) } catch {}
+
+  const nota = itens.length
+    ? (itens.reduce((s, q) => s + (Number(q.nota) || 0), 0) / itens.length)
+    : 0
+  const notaFmt  = nota.toFixed(1)
+  const pontFmt  = (nota * nv.multi).toFixed(1)
+  const notaCor  = nota >= 7 ? 'var(--success)' : nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+
+  const prevBest = _sessao?.bestPontuacao || 0
+  const novaPont = nota * nv.multi
+  const ehRecord = novaPont > prevBest
+
+  const rank = nota >= 9.5 ? { t: 'LENDÁRIO', c: 'var(--warn)' }
+             : nota >= 8   ? { t: 'EXCELENTE', c: 'var(--success)' }
+             : nota >= 7   ? { t: 'BOM',       c: 'var(--blue)' }
+             : nota >= 5   ? { t: 'REGULAR',   c: 'var(--gray)' }
+             :               { t: 'PRECISA MELHORAR', c: 'var(--danger)' }
+
+  return `
+    <!-- HEADER RESULTADO -->
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div style="height:3px;width:32px;background:${cor};border-radius:2px;"></div>
+      <span style="font-size:13px;font-weight:500;color:var(--white);">resultado da prova</span>
+      <span style="
+        font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+        color:${nv.cor};background:${nv.cor}15;border:0.5px solid ${nv.cor}44;
+        padding:3px 10px;border-radius:4px;
+      ">${nv.stars} ${nv.label}</span>
+    </div>
+
+    <!-- PAINEL DE NOTA -->
+    <div style="
+      background:var(--surface);border:1px solid var(--border);border-radius:10px;
+      padding:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+      justify-content:center;
+    ">
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">nota</div>
+        <div style="font-size:42px;font-weight:700;color:${notaCor};line-height:1;">${notaFmt}</div>
+        <div style="font-size:10px;color:${notaCor};opacity:0.7;">/ 10</div>
+      </div>
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">multi</div>
+        <div style="font-size:24px;font-weight:600;color:${nv.cor};line-height:1;">×${nv.multi.toFixed(1)}</div>
+        <div style="font-size:10px;color:${nv.cor};opacity:0.7;">${nv.label}</div>
+      </div>
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">pontuação</div>
+        <div style="font-size:28px;font-weight:600;color:var(--blue);line-height:1;">${pontFmt}</div>
+        <div style="font-size:10px;color:var(--blue);opacity:0.7;">pts</div>
+      </div>
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">rank</div>
+        <div style="font-size:12px;font-weight:600;color:${rank.c};letter-spacing:0.12em;line-height:1.4;">${rank.t}</div>
+        ${ehRecord ? `
+          <div style="
+            margin-top:6px;background:var(--warn)18;border:0.5px solid var(--warn);
+            border-radius:4px;padding:2px 8px;
+            font-size:9px;color:var(--warn);letter-spacing:0.12em;font-weight:600;
+          ">🏆 NOVO RECORDE!</div>
+        ` : `
+          <div style="font-size:9px;color:var(--gray-dim);margin-top:4px;">
+            melhor: ${prevBest > 0 ? prevBest.toFixed(1) + ' pts' : '—'}
+          </div>
+        `}
+      </div>
+    </div>
+
+    <!-- ★ QUESTÕES — AGORA USA _prova.respostas[i] E _prova.perguntas[i] -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      ${itens.map((q, i) => {
+        const qCor = q.nota >= 7 ? 'var(--success)' : q.nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+
+        // ★ PEGA A RESPOSTA REAL DO ALUNO, não a da IA
+        const respostaReal  = (_prova?.respostas?.[i]) || '—'
+        const perguntaReal  = (_prova?.perguntas?.[i]) || q.pergunta || '—'
+
+        return `
+          <div class="card" style="border-left:2px solid ${qCor};">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:10px;color:${cor};letter-spacing:0.15em;text-transform:uppercase;">questão ${i+1}</span>
+              <span style="font-size:12px;font-weight:500;color:${qCor};">${q.nota}/10</span>
+            </div>
+
+            <!-- pergunta original -->
+            <div style="font-size:12px;color:var(--white);margin-bottom:6px;line-height:1.5;
+                        white-space:pre-wrap;">${perguntaReal}</div>
+
+            <!-- ★ RESPOSTA DO ALUNO (original, não alterada) -->
+            <div style="background:var(--surface2);padding:8px 10px;border-radius:5px;margin-bottom:6px;">
+              <div style="font-size:9px;color:var(--gray-dim);letter-spacing:0.1em;
+                          text-transform:uppercase;margin-bottom:3px;">sua resposta</div>
+              <div style="font-size:11px;color:var(--gray);line-height:1.6;
+                          white-space:pre-wrap;">${respostaReal.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+            </div>
+
+            <!-- feedback da IA -->
+            <div>
+              <div style="font-size:9px;color:${qCor};letter-spacing:0.1em;
+                          text-transform:uppercase;margin-bottom:3px;">feedback</div>
+              <div style="font-size:11px;color:var(--gray);line-height:1.6;">${q.feedback}</div>
+            </div>
           </div>`
-      }
+      }).join('')}
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:12px;">
+      <button class="btn" id="btn-nova-sessao">nova sessão</button>
+      <button class="btn btn-primary" id="btn-salvar-sessao">💾 salvar resultado</button>
     </div>
   `
 }
@@ -240,6 +434,9 @@ function tplEstudo() {
     !_gat.foto  ? 'enviar resumo'  : null,
   ].filter(Boolean)
 
+  // se está voltando da prova com consulta permitida, mostra aviso
+  const voltouDaProva = emProvaAtiva() && _nivelProva
+
   return `
     <!-- HEADER DA SESSÃO -->
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -247,11 +444,32 @@ function tplEstudo() {
       <span style="font-size:14px;font-weight:500;color:var(--white);">${_sessao.tema}</span>
       ${mat ? `<span class="badge" style="background:${cor}18;color:${cor};border-color:${cor}55;">${mat.nome}</span>` : ''}
       <div style="margin-left:auto;display:flex;gap:10px;">
-        ${gat('▶','vídeo', _gat.video)}
-        ${gat('≡','texto', _gat.texto)}
-        ${gat('◎','resumo',_gat.foto)}
+        ${gatIcon('▶','vídeo', _gat.video)}
+        ${gatIcon('≡','texto', _gat.texto)}
+        ${gatIcon('◎','resumo',_gat.foto)}
       </div>
     </div>
+
+    ${voltouDaProva ? `
+      <div style="
+        background:${_nivelProva.cor}10;border:0.5px solid ${_nivelProva.cor}44;
+        border-radius:6px;padding:10px 14px;
+        display:flex;align-items:center;gap:10px;
+      ">
+        <span style="font-size:14px;">📖</span>
+        <div style="flex:1;">
+          <div style="font-size:11px;color:${_nivelProva.cor};font-weight:500;">
+            Consulta permitida — nível ${_nivelProva.label}
+          </div>
+          <div style="font-size:10px;color:var(--gray);margin-top:2px;">
+            Revise o material e volte à prova quando estiver pronto.
+          </div>
+        </div>
+        <button class="btn" data-tab-voltar="prova" style="
+          font-size:10px;white-space:nowrap;border-color:${_nivelProva.cor}66;color:${_nivelProva.cor};
+        ">voltar à prova ›</button>
+      </div>
+    ` : ''}
 
     <!-- BLOCO 1: YOUTUBE -->
     <div class="card">
@@ -367,25 +585,27 @@ function tplEstudo() {
     </div>
 
     <!-- BLOCO 4: LIBERAR PROVA -->
-    <div style="display:flex;justify-content:flex-end;align-items:center;
-                gap:12px;flex-wrap:wrap;padding-bottom:12px;">
-      ${!gatOk
-        ? `<span style="font-size:10px;color:var(--gray-dim);letter-spacing:0.08em;">
-             falta: ${falta.join(' · ')}
-           </span>`
-        : ''
-      }
-      <button id="btn-ir-prova" class="btn btn-primary"
-        ${gatOk ? '' : 'disabled'}
-        style="${!gatOk ? 'opacity:0.4;cursor:not-allowed;' : ''}">
-        ✦ iniciar prova ENEM ›
-      </button>
-    </div>
+    ${!emProvaAtiva() ? `
+      <div style="display:flex;justify-content:flex-end;align-items:center;
+                  gap:12px;flex-wrap:wrap;padding-bottom:12px;">
+        ${!gatOk
+          ? `<span style="font-size:10px;color:var(--gray-dim);letter-spacing:0.08em;">
+               falta: ${falta.join(' · ')}
+             </span>`
+          : ''
+        }
+        <button id="btn-ir-prova" class="btn btn-primary"
+          ${gatOk ? '' : 'disabled'}
+          style="${!gatOk ? 'opacity:0.4;cursor:not-allowed;' : ''}">
+          ✦ escolher nível e iniciar prova ›
+        </button>
+      </div>
+    ` : ''}
   `
 }
 
 /* helpers visuais */
-function gat(icon, label, ok) {
+function gatIcon(icon, label, ok) {
   return `<div style="display:flex;align-items:center;gap:4px;font-size:10px;
                       letter-spacing:0.08em;color:${ok ? 'var(--success)' : 'var(--gray-dim)'};">
     <span>${ok ? '✓' : icon}</span><span>${label}</span>
@@ -421,7 +641,7 @@ function renderTexto(txt) {
 }
 
 /* ══════════════════════════════════════════════════
-   SUB-TELA 3 — PROVA
+   SUB-TELA 3 — PROVA (com nível + desistir)
 ══════════════════════════════════════════════════ */
 function tplProva() {
   if (!_prova) return `<div class="empty-state"><div class="empty-state-icon">✦</div><span>nenhuma prova gerada</span></div>`
@@ -429,24 +649,52 @@ function tplProva() {
   const { perguntas, respostas, correcao } = _prova
   const mat = (Store.get().materias || []).find(m => m.id === _sessao?.materiaId)
   const cor = mat?.cor || '#1a8fff'
+  const nv  = _nivelProva || NIVEIS_PROVA[0]
 
-  if (correcao) return tplCorrecao(correcao, cor)
+  if (correcao) return tplCorrecao(correcao, cor, nv)
 
-  const nivelCor = i => i < 3 ? 'var(--success)' : i < 6 ? 'var(--blue)' : i < 9 ? 'var(--warn)' : 'var(--danger)'
-  const nivelLabel = i => i < 3 ? 'fácil' : i < 6 ? 'médio' : i < 9 ? 'difícil' : 'desafio'
+  const nivelCor   = i => {
+    const pct = i / perguntas.length
+    if (pct < 0.3)  return 'var(--success)'
+    if (pct < 0.6)  return 'var(--blue)'
+    if (pct < 0.9)  return 'var(--warn)'
+    return 'var(--danger)'
+  }
+  const nivelLabel = i => {
+    const pct = i / perguntas.length
+    if (pct < 0.3)  return 'fácil'
+    if (pct < 0.6)  return 'médio'
+    if (pct < 0.9)  return 'difícil'
+    return 'desafio'
+  }
 
   return `
+    <!-- HEADER PROVA -->
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <div style="height:3px;width:32px;background:${cor};border-radius:2px;"></div>
       <span style="font-size:13px;font-weight:500;color:var(--white);">prova — ${_sessao?.tema || ''}</span>
       ${mat ? `<span class="badge" style="background:${cor}18;color:${cor};border-color:${cor}55;">${mat.nome}</span>` : ''}
+      <span style="
+        font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+        color:${nv.cor};background:${nv.cor}15;border:0.5px solid ${nv.cor}44;
+        padding:3px 10px;border-radius:4px;
+      ">${nv.stars} ${nv.label} · ×${nv.multi.toFixed(1)}</span>
     </div>
 
+    <!-- INFO BOX -->
     <div style="font-size:11px;color:var(--gray);background:var(--surface2);
-                border-radius:6px;padding:10px 12px;border-left:2px solid ${cor};">
-      Prova estilo ENEM · ${perguntas.length} questões dissertativas · responda com suas próprias palavras
+                border-radius:6px;padding:10px 12px;border-left:2px solid ${nv.cor};
+                display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span>${perguntas.length} questões dissertativas · ${nv.desc}</span>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        ${nv.tabEstudo
+          ? `<span style="font-size:9px;color:var(--success);">✓ leitura acessível</span>`
+          : `<span style="font-size:9px;color:var(--danger);opacity:.7;">✕ sem consulta</span>`
+        }
+      </div>
     </div>
 
+    <!-- QUESTÕES -->
     <div style="display:flex;flex-direction:column;gap:14px;">
       ${perguntas.map((p, i) => `
         <div class="card" style="border-left:2px solid ${nivelCor(i)};">
@@ -469,34 +717,111 @@ function tplProva() {
       `).join('')}
     </div>
 
-    <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:12px;">
-      <button class="btn" id="btn-rascunho">salvar rascunho</button>
-      <button class="btn btn-primary" id="btn-enviar-prova">✦ enviar para correção</button>
+    <!-- AÇÕES -->
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;
+                padding-bottom:12px;flex-wrap:wrap;">
+      <button class="btn btn-danger" id="btn-desistir-prova" style="font-size:10px;">
+        ✕ desistir da prova
+      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="btn-rascunho">salvar rascunho</button>
+        <button class="btn btn-primary" id="btn-enviar-prova">✦ enviar para correção</button>
+      </div>
     </div>
   `
 }
 
-function tplCorrecao(correcaoStr, cor) {
+/* ── CORREÇÃO (com record e game) ─────────────── */
+function tplCorrecao(correcaoStr, cor, nv) {
   let itens = []
   try { itens = JSON.parse(correcaoStr) } catch {}
 
   const nota = itens.length
-    ? (itens.reduce((s, q) => s + (Number(q.nota) || 0), 0) / itens.length).toFixed(1)
-    : '—'
-  const notaCor = nota >= 7 ? 'var(--success)' : nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+    ? (itens.reduce((s, q) => s + (Number(q.nota) || 0), 0) / itens.length)
+    : 0
+  const notaFmt  = nota.toFixed(1)
+  const pontFmt  = (nota * nv.multi).toFixed(1)
+  const notaCor  = nota >= 7 ? 'var(--success)' : nota >= 5 ? 'var(--warn)' : 'var(--danger)'
+
+  // verifica se é novo recorde
+  const prevBest = _sessao?.bestPontuacao || 0
+  const novaPont = nota * nv.multi
+  const ehRecord = novaPont > prevBest
+
+  // rank baseado no resultado
+  const rank = nota >= 9.5 ? { t: 'LENDÁRIO', c: 'var(--warn)' }
+             : nota >= 8   ? { t: 'EXCELENTE', c: 'var(--success)' }
+             : nota >= 7   ? { t: 'BOM',       c: 'var(--blue)' }
+             : nota >= 5   ? { t: 'REGULAR',   c: 'var(--gray)' }
+             :               { t: 'PRECISA MELHORAR', c: 'var(--danger)' }
 
   return `
+    <!-- HEADER RESULTADO -->
     <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
       <div style="height:3px;width:32px;background:${cor};border-radius:2px;"></div>
       <span style="font-size:13px;font-weight:500;color:var(--white);">resultado da prova</span>
-      <div style="margin-left:auto;background:${notaCor}18;border:0.5px solid ${notaCor};
-                  border-radius:8px;padding:8px 18px;text-align:center;">
-        <div style="font-size:9px;color:${notaCor};letter-spacing:0.12em;text-transform:uppercase;">nota</div>
-        <div style="font-size:28px;font-weight:500;color:${notaCor};line-height:1.1;">${nota}</div>
-        <div style="font-size:9px;color:${notaCor};opacity:0.7;">/ 10</div>
+      <span style="
+        font-size:10px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+        color:${nv.cor};background:${nv.cor}15;border:0.5px solid ${nv.cor}44;
+        padding:3px 10px;border-radius:4px;
+      ">${nv.stars} ${nv.label}</span>
+    </div>
+
+    <!-- PAINEL DE NOTA (estilo game) -->
+    <div style="
+      background:var(--surface);border:1px solid var(--border);border-radius:10px;
+      padding:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;
+      justify-content:center;
+    ">
+      <!-- NOTA -->
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">nota</div>
+        <div style="font-size:42px;font-weight:700;color:${notaCor};line-height:1;">${notaFmt}</div>
+        <div style="font-size:10px;color:${notaCor};opacity:0.7;">/ 10</div>
+      </div>
+
+      <!-- SEPARADOR -->
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+
+      <!-- MULTIPLICADOR -->
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">multi</div>
+        <div style="font-size:24px;font-weight:600;color:${nv.cor};line-height:1;">×${nv.multi.toFixed(1)}</div>
+        <div style="font-size:10px;color:${nv.cor};opacity:0.7;">${nv.label}</div>
+      </div>
+
+      <!-- SEPARADOR -->
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+
+      <!-- PONTUAÇÃO -->
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">pontuação</div>
+        <div style="font-size:28px;font-weight:600;color:var(--blue);line-height:1;">${pontFmt}</div>
+        <div style="font-size:10px;color:var(--blue);opacity:0.7;">pts</div>
+      </div>
+
+      <!-- SEPARADOR -->
+      <div style="width:1px;height:60px;background:var(--border);"></div>
+
+      <!-- RANK -->
+      <div style="text-align:center;">
+        <div style="font-size:9px;color:var(--gray);letter-spacing:0.15em;text-transform:uppercase;margin-bottom:4px;">rank</div>
+        <div style="font-size:12px;font-weight:600;color:${rank.c};letter-spacing:0.12em;line-height:1.4;">${rank.t}</div>
+        ${ehRecord ? `
+          <div style="
+            margin-top:6px;background:var(--warn)18;border:0.5px solid var(--warn);
+            border-radius:4px;padding:2px 8px;
+            font-size:9px;color:var(--warn);letter-spacing:0.12em;font-weight:600;
+          ">🏆 NOVO RECORDE!</div>
+        ` : `
+          <div style="font-size:9px;color:var(--gray-dim);margin-top:4px;">
+            melhor: ${prevBest > 0 ? prevBest.toFixed(1) + ' pts' : '—'}
+          </div>
+        `}
       </div>
     </div>
 
+    <!-- QUESTÕES CORRIGIDAS -->
     <div style="display:flex;flex-direction:column;gap:12px;">
       ${itens.map((q, i) => {
         const qCor = q.nota >= 7 ? 'var(--success)' : q.nota >= 5 ? 'var(--warn)' : 'var(--danger)'
@@ -521,7 +846,7 @@ function tplCorrecao(correcaoStr, cor) {
 
     <div style="display:flex;justify-content:flex-end;gap:8px;padding-bottom:12px;">
       <button class="btn" id="btn-nova-sessao">nova sessão</button>
-      <button class="btn btn-primary" id="btn-salvar-sessao">salvar resultado</button>
+      <button class="btn btn-primary" id="btn-salvar-sessao">💾 salvar resultado</button>
     </div>
   `
 }
@@ -536,23 +861,29 @@ function bindEstudos(sub) {
   document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.disabled) return
-      _estSub = btn.dataset.tab
+      const tab = btn.dataset.tab
+      if (emProvaAtiva() && !tabAcessivel(tab)) return
+      _estSub = tab
       renderEstudos()
     })
+  })
+
+  /* ── botão "voltar à prova" no estudo ── */
+  sub.querySelector('[data-tab-voltar]')?.addEventListener('click', () => {
+    _estSub = 'prova'
+    renderEstudos()
   })
 
   /* ── PESQUISA ── */
   sub.querySelector('#btn-iniciar')?.addEventListener('click', iniciarSessao)
 
-  // retomar sessão (clique na área de info)
   sub.querySelectorAll('[data-retomar]').forEach(el =>
     el.addEventListener('click', () => retomarSessao(el.dataset.retomar))
   )
 
-  // ★ DELETAR sessão (clique no ✕)
   sub.querySelectorAll('[data-deletar-sessao]').forEach(btn =>
     btn.addEventListener('click', e => {
-      e.stopPropagation()  // não dispara retomar
+      e.stopPropagation()
       pedirDelSessao(btn.dataset.deletarSessao)
     })
   )
@@ -566,10 +897,7 @@ function bindEstudos(sub) {
 
   const btnVidOk = sub.querySelector('#btn-video-ok')
   if (btnVidOk && !_gat.video) {
-    btnVidOk.addEventListener('click', () => {
-      _gat.video = true
-      renderEstudos()
-    })
+    btnVidOk.addEventListener('click', () => { _gat.video = true; renderEstudos() })
   }
 
   sub.querySelector('#btn-gerar-texto')?.addEventListener('click', gerarTexto)
@@ -578,8 +906,7 @@ function bindEstudos(sub) {
   if (textoEl && !_gat.texto) {
     textoEl.addEventListener('scroll', () => {
       if (textoEl.scrollTop + textoEl.clientHeight >= textoEl.scrollHeight - 24) {
-        _gat.texto = true
-        renderEstudos()
+        _gat.texto = true; renderEstudos()
       }
     }, { passive: true })
   }
@@ -598,30 +925,40 @@ function bindEstudos(sub) {
     const nome = sub.querySelector('#est-foto-nome')
     if (nome) nome.textContent = file.name
     const reader = new FileReader()
-    reader.onload = ev => {
-      _foto = ev.target.result.split(',')[1]
-      renderEstudos()
-    }
+    reader.onload = ev => { _foto = ev.target.result.split(',')[1]; renderEstudos() }
     reader.readAsDataURL(file)
   })
 
   sub.querySelector('#btn-analisar')?.addEventListener('click', analisarFoto)
 
+  // abre modal de seleção de nível em vez de gerar direto
   const btnProva = sub.querySelector('#btn-ir-prova')
   if (btnProva && !btnProva.disabled) {
-    btnProva.addEventListener('click', gerarProva)
+    btnProva.addEventListener('click', () => openModal('modal-nivel-prova'))
   }
 
   /* ── PROVA ── */
   sub.querySelector('#btn-rascunho')?.addEventListener('click', salvarRascunho)
   sub.querySelector('#btn-enviar-prova')?.addEventListener('click', enviarProva)
+  sub.querySelector('#btn-desistir-prova')?.addEventListener('click', () => openModal('modal-desistir-prova'))
 
   sub.querySelector('#btn-nova-sessao')?.addEventListener('click', () => {
-    _sessao = null; _gat = resetGat(); _foto = null; _prova = null; _estSub = 'pesquisa'
+    _sessao = null; _gat = resetGat(); _foto = null; _prova = null; _nivelProva = null; _estSub = 'pesquisa'
     renderEstudos()
   })
 
   sub.querySelector('#btn-salvar-sessao')?.addEventListener('click', salvarSessao)
+}
+
+/* ══════════════════════════════════════════════════
+   DESISTIR DA PROVA
+══════════════════════════════════════════════════ */
+function confirmarDesistir() {
+  _prova      = null
+  _nivelProva = null
+  _estSub     = 'estudo'
+  closeModal('modal-desistir-prova')
+  renderEstudos()
 }
 
 /* ══════════════════════════════════════════════════
@@ -630,14 +967,15 @@ function bindEstudos(sub) {
 function pedirDelSessao(id) {
   const s = (Store.get().estudos || []).find(x => x.id === id)
   if (!s) return
-
   document.getElementById('del-sessao-id').value = id
   document.getElementById('del-sessao-aviso').innerHTML = `
     Tem certeza que deseja remover a sessão
     <strong style="color:var(--white);">"${s.tema}"</strong>?
-    ${s.provaFeita
-      ? `<br><br><span style="color:var(--warn);">⚠ Esta sessão tem prova realizada — os dados serão perdidos.</span>`
-      : ''
+    ${s.bestNota != null
+      ? `<br><br><span style="color:var(--warn);">⚠ Recorde de ${Number(s.bestNota).toFixed(1)}/10 será perdido.</span>`
+      : s.provaFeita
+        ? `<br><br><span style="color:var(--warn);">⚠ Esta sessão tem prova realizada.</span>`
+        : ''
     }
   `
   openModal('modal-del-sessao')
@@ -646,20 +984,10 @@ function pedirDelSessao(id) {
 function confirmarDelSessao() {
   const id = document.getElementById('del-sessao-id').value
   if (!id) return
-
-  Store.set(d => {
-    d.estudos = (d.estudos || []).filter(x => x.id !== id)
-  })
-
-  // se a sessão deletada é a ativa, limpa tudo
+  Store.set(d => { d.estudos = (d.estudos || []).filter(x => x.id !== id) })
   if (_sessao?.id === id) {
-    _sessao = null
-    _gat    = resetGat()
-    _foto   = null
-    _prova  = null
-    _estSub = 'pesquisa'
+    _sessao = null; _gat = resetGat(); _foto = null; _prova = null; _nivelProva = null; _estSub = 'pesquisa'
   }
-
   closeModal('modal-del-sessao')
   renderEstudos()
 }
@@ -674,8 +1002,7 @@ function iniciarSessao() {
 
   if (!tema) {
     if (temaEl) {
-      temaEl.focus()
-      temaEl.style.borderColor = 'var(--danger)'
+      temaEl.focus(); temaEl.style.borderColor = 'var(--danger)'
       setTimeout(() => { temaEl.style.borderColor = '' }, 1200)
     }
     return
@@ -683,17 +1010,17 @@ function iniciarSessao() {
 
   _sessao = {
     id: uid(), materiaId, tema,
-    ctx:         document.getElementById('est-ctx')?.value.trim() || '',
-    textoGerado: null,
-    chatHist:    [],
-    criadaEm:    new Date().toISOString(),
-    provaFeita:  false,
-    fotoEnviada: false
+    ctx:           document.getElementById('est-ctx')?.value.trim() || '',
+    textoGerado:   null,
+    chatHist:      [],
+    criadaEm:      new Date().toISOString(),
+    provaFeita:    false,
+    fotoEnviada:   false,
+    bestNota:      null,
+    bestNivel:     null,
+    bestPontuacao: null
   }
-  _gat    = resetGat()
-  _foto   = null
-  _prova  = null
-  _estSub = 'estudo'
+  _gat = resetGat(); _foto = null; _prova = null; _nivelProva = null; _estSub = 'estudo'
   renderEstudos()
 }
 
@@ -702,9 +1029,7 @@ function retomarSessao(id) {
   if (!s) return
   _sessao = { ...s, chatHist: s.chatHist || [] }
   _gat    = { video: false, texto: !!s.textoGerado, foto: !!s.fotoEnviada }
-  _foto   = null
-  _prova  = null
-  _estSub = 'estudo'
+  _foto   = null; _prova = null; _nivelProva = null; _estSub = 'estudo'
   renderEstudos()
 }
 
@@ -713,8 +1038,7 @@ async function gerarTexto() {
   const btn = document.getElementById('btn-gerar-texto')
   if (!btn || !_sessao) return
 
-  btn.disabled = true
-  btn.textContent = '⟳ gerando...'
+  btn.disabled = true; btn.textContent = '⟳ gerando...'
 
   const mat = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
   const dif = mat?.dificuldade || 3
@@ -751,8 +1075,7 @@ Use markdown (# ## ### **negrito** - listas). 400-600 palavras. Português claro
     _sessao.textoGerado = texto
     renderEstudos()
   } catch (err) {
-    btn.disabled    = false
-    btn.textContent = '✦ gerar texto com IA'
+    btn.disabled = false; btn.textContent = '✦ gerar texto com IA'
     const wrap = document.getElementById('est-texto')
     if (wrap) wrap.innerHTML = `<div style="color:var(--danger);font-size:11px;line-height:1.7;">${err.message}</div>`
   }
@@ -763,22 +1086,18 @@ async function analisarFoto() {
   const btn = document.getElementById('btn-analisar')
   if (!btn || !_foto || !_sessao) return
 
-  btn.disabled    = true
-  btn.textContent = '⟳ analisando...'
+  btn.disabled = true; btn.textContent = '⟳ analisando...'
 
   const prompt = `Analise esta foto de um resumo manuscrito sobre "${_sessao.tema}". Verifique se o conteúdo é relevante e demonstra compreensão. Responda em 2-3 frases em português, de forma construtiva.`
 
   try {
     const feedback = await aiChat(prompt, _foto)
-    _gat.foto            = true
-    _sessao.fotoEnviada  = true
-    _foto                = null
+    _gat.foto = true; _sessao.fotoEnviada = true; _foto = null
     renderEstudos()
     const fb = document.getElementById('foto-feedback')
     if (fb) fb.innerHTML = `<div style="color:var(--success);">${feedback}</div>`
   } catch (err) {
-    btn.disabled    = false
-    btn.textContent = '✦ analisar resumo com IA'
+    btn.disabled = false; btn.textContent = '✦ analisar resumo com IA'
     const fb = document.getElementById('foto-feedback')
     if (fb) fb.innerHTML = `<div style="color:var(--danger);">${err.message}</div>`
   }
@@ -786,10 +1105,10 @@ async function analisarFoto() {
 
 /* ── CHAT COM IA ────────────────────────────────── */
 async function enviarChat() {
-  const inputEl  = document.getElementById('est-chat-input')
-  const histEl   = document.getElementById('est-chat-hist')
-  const loadEl   = document.getElementById('chat-loading')
-  const btnEl    = document.getElementById('btn-chat')
+  const inputEl = document.getElementById('est-chat-input')
+  const histEl  = document.getElementById('est-chat-hist')
+  const loadEl  = document.getElementById('chat-loading')
+  const btnEl   = document.getElementById('btn-chat')
   if (!inputEl || !_sessao) return
 
   const pergunta = inputEl.value.trim()
@@ -801,16 +1120,14 @@ async function enviarChat() {
 
   if (histEl) {
     histEl.style.display = 'flex'
-    histEl.innerHTML     = _sessao.chatHist.map(m => bolha(m.role, m.text)).join('')
-    histEl.scrollTop     = histEl.scrollHeight
+    histEl.innerHTML = _sessao.chatHist.map(m => bolha(m.role, m.text)).join('')
+    histEl.scrollTop = histEl.scrollHeight
   }
   if (btnEl)  btnEl.disabled      = true
   if (loadEl) loadEl.style.display = 'block'
 
   const mat = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
-  const ctx = _sessao.textoGerado
-    ? `Você gerou este texto:\n${_sessao.textoGerado.slice(0, 600)}\n\n`
-    : ''
+  const ctx = _sessao.textoGerado ? `Você gerou este texto:\n${_sessao.textoGerado.slice(0, 600)}\n\n` : ''
 
   const prompt = `${ctx}Aluno estudando "${_sessao.tema}" (${mat?.nome || 'geral'}) pergunta:\n"${pergunta}"\n\nResponda em texto corrido, sem listas com marcadores, sem negrito, sem formatação markdown. Use parágrafos simples separados por quebra de linha. Seja direto e didático.`
 
@@ -821,36 +1138,56 @@ async function enviarChat() {
     _sessao.chatHist.push({ role: 'ai', text: `Erro: ${err.message}` })
   }
 
-  if (histEl) {
-    histEl.innerHTML = _sessao.chatHist.map(m => bolha(m.role, m.text)).join('')
-    histEl.scrollTop = histEl.scrollHeight
-  }
+  if (histEl) { histEl.innerHTML = _sessao.chatHist.map(m => bolha(m.role, m.text)).join(''); histEl.scrollTop = histEl.scrollHeight }
   if (btnEl)  btnEl.disabled      = false
   if (loadEl) loadEl.style.display = 'none'
 }
 
-/* ── GERAR PROVA ────────────────────────────────── */
-async function gerarProva() {
-  const btn = document.getElementById('btn-ir-prova')
-  if (!btn || !_sessao) return
+/* ══════════════════════════════════════════════════
+   GERAR PROVA (com nível selecionado)
+══════════════════════════════════════════════════ */
+async function gerarProva(nivel) {
+  _nivelProva = nivel
 
-  btn.disabled    = true
-  btn.textContent = '⟳ gerando prova ENEM...'
+  // cria botão de loading temporário
+  const el = document.getElementById('est-content')
+  if (el) {
+    el.innerHTML = `
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;
+                  justify-content:center;gap:16px;">
+        <div style="
+          width:60px;height:60px;border-radius:12px;
+          background:${nivel.cor}15;border:1px solid ${nivel.cor}44;
+          display:flex;align-items:center;justify-content:center;
+          font-size:22px;color:${nivel.cor};
+        ">${nivel.stars}</div>
+        <div style="font-size:13px;color:var(--white);font-weight:500;">
+          gerando prova ${nivel.label}...
+        </div>
+        <div style="font-size:11px;color:var(--gray);letter-spacing:0.08em;">
+          ${nivel.questoes} questões · multiplicador ×${nivel.multi.toFixed(1)}
+        </div>
+        <div style="font-size:18px;color:var(--gray);animation:spin 1s linear infinite;">⟳</div>
+      </div>
+      <style>@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}</style>
+    `
+  }
 
-  const mat   = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
+  const mat   = (Store.get().materias || []).find(m => m.id === _sessao?.materiaId)
   const isMat = /mat|calc|álgebra|geometria|estatística|física/i.test(mat?.nome || '')
 
-  const prompt = `Você é elaborador de questões do ENEM. Crie 10 questões dissertativas sobre "${_sessao.tema}" (${mat?.nome || 'geral'}).
+  const prompt = `Você é elaborador de questões do ENEM. Crie ${nivel.questoes} questões dissertativas sobre "${_sessao.tema}" (${mat?.nome || 'geral'}).
 
 REGRAS:
+- ${nivel.prompt}
 - Cada questão: texto de contextualização + enunciado claro
-- Dificuldade progressiva: Q1-3 fácil, Q4-6 médio, Q7-9 difícil, Q10 desafio
+- Dificuldade progressiva ao longo das questões
 - Baseadas em questões reais do ENEM e vestibulares
 - Interdisciplinaridade e situações do cotidiano
 - Questões abertas, não múltipla escolha
 ${isMat ? '- Inclua expressões matemáticas em texto e problemas contextualizados' : ''}
 
-Retorne APENAS um JSON array com 10 strings. Cada string = contexto + enunciado completo.
+Retorne APENAS um JSON array com ${nivel.questoes} strings. Cada string = contexto + enunciado completo.
 Exemplo: ["Texto contexto... Enunciado?", ...]`
 
   try {
@@ -860,12 +1197,13 @@ Exemplo: ["Texto contexto... Enunciado?", ...]`
     if (!match) throw new Error('Resposta fora do formato esperado.')
     const perguntas = JSON.parse(match[0])
     if (!Array.isArray(perguntas) || perguntas.length === 0) throw new Error('Array de perguntas inválido.')
-    _prova  = { perguntas, respostas: new Array(perguntas.length).fill(''), correcao: null }
+    _prova  = { perguntas, respostas: new Array(perguntas.length).fill(''), correcao: null, nivel: nivel.id }
     _estSub = 'prova'
     renderEstudos()
   } catch (err) {
-    btn.disabled    = false
-    btn.textContent = '✦ iniciar prova ENEM ›'
+    _nivelProva = null
+    _estSub = 'estudo'
+    renderEstudos()
     alert(`Erro ao gerar prova: ${err.message}`)
   }
 }
@@ -885,6 +1223,7 @@ async function enviarProva() {
   if (!_prova || !_sessao) return
 
   const btn = document.getElementById('btn-enviar-prova')
+  const nv  = _nivelProva || NIVEIS_PROVA[0]
 
   const vazias = _prova.respostas.filter(r => !r.trim()).length
   if (vazias > 0) {
@@ -896,25 +1235,55 @@ async function enviarProva() {
 
   const mat  = (Store.get().materias || []).find(m => m.id === _sessao.materiaId)
   const pares = _prova.perguntas.map((p, i) =>
-    `Q${i+1}: ${p}\nR${i+1}: ${_prova.respostas[i]}`
-  ).join('\n\n')
+    `QUESTÃO ${i+1}:\n${p}\n\nRESPOSTA DO ALUNO ${i+1}:\n${_prova.respostas[i]}`
+  ).join('\n\n---\n\n')
 
-  const prompt = `Corrija esta prova sobre "${_sessao.tema}" (${mat?.nome || 'geral'}).
+  // ★ PROMPT CORRIGIDO — não pede campo "resposta", exige avaliação fiel
+  const prompt = `Você é um corretor rigoroso de provas. Corrija esta prova sobre "${_sessao.tema}" (${mat?.nome || 'geral'}).
+Nível: ${nv.label}
+
+IMPORTANTE:
+- Avalie APENAS o que o aluno escreveu. NÃO invente, complete ou melhore a resposta dele.
+- Se o aluno errou, a nota deve refletir o erro. Não dê nota alta para respostas incorretas.
+- Se a resposta está vazia, incompleta ou errada, a nota deve ser baixa (0-3).
+- Se a resposta está parcialmente correta, nota média (4-6).
+- Se a resposta está correta e bem argumentada, nota alta (7-10).
+- Seja justo mas rigoroso.
 
 ${pares}
 
-Retorne APENAS um JSON array com ${_prova.perguntas.length} objetos:
-[{"pergunta":"...","resposta":"...","nota":0-10,"feedback":"feedback em texto corrido sem formatação markdown"}]
+Retorne APENAS um JSON array com ${_prova.perguntas.length} objetos neste formato EXATO:
+[{"questao":1,"nota":0,"feedback":"explicação do que estava certo/errado e a resposta correta"}]
 
-Seja justo, didático e construtivo. APENAS o JSON.`
+O campo "nota" é um número inteiro de 0 a 10.
+O campo "feedback" deve explicar os erros E dar a resposta correta para o aluno aprender.
+NÃO inclua campo "resposta" nem "pergunta" no JSON.
+APENAS o JSON array, nada mais.`
 
   try {
     const resp  = await aiChat(prompt)
     const clean = resp.replace(/```json|```/g, '').trim()
     const match = clean.match(/\[[\s\S]*\]/)
     if (!match) throw new Error('Formato de correção inválido.')
-    _prova.correcao     = match[0]
-    _sessao.provaFeita  = true
+
+    _prova.correcao    = match[0]
+    _sessao.provaFeita = true
+
+    // ★ CALCULA E SALVA MELHOR NOTA
+    let itens = []
+    try { itens = JSON.parse(match[0]) } catch {}
+    if (itens.length > 0) {
+      const nota      = itens.reduce((s, q) => s + (Number(q.nota) || 0), 0) / itens.length
+      const pontuacao = nota * nv.multi
+      const prevBest  = _sessao.bestPontuacao || 0
+
+      if (pontuacao > prevBest) {
+        _sessao.bestNota      = nota
+        _sessao.bestNivel     = nv.id
+        _sessao.bestPontuacao = pontuacao
+      }
+    }
+
     renderEstudos()
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = '✦ enviar para correção' }
@@ -932,6 +1301,6 @@ function salvarSessao() {
     if (idx >= 0) d.estudos[idx] = copia
     else d.estudos.push(copia)
   })
-  _sessao = null; _gat = resetGat(); _foto = null; _prova = null; _estSub = 'pesquisa'
+  _sessao = null; _gat = resetGat(); _foto = null; _prova = null; _nivelProva = null; _estSub = 'pesquisa'
   renderEstudos()
 }
