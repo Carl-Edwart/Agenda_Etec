@@ -58,25 +58,87 @@ function deadlineBadge(iso) {
   return `<span class="badge badge-gray">${fmtDate(iso)}</span>`
 }
 
+/* ── ANIMAÇÃO DE SAÍDA DE ITEM ─────────────────────
+   Colapsa o elemento (altura→0 + fade + deslize) e
+   chama o callback ao final. Um único elemento anima
+   por vez, usando só height/opacity/transform (leve;
+   sem timers infinitos nem reflow contínuo).
+   `gap` compensa o espaço do flex-gap da lista. */
+function animarSaida(el, aoTerminar, gap = 0) {
+  const done = () => aoTerminar && aoTerminar()
+  if (!el) return done()
+  if (el.dataset.saindo) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return done()
+
+  el.dataset.saindo = '1'
+  el.style.height = el.offsetHeight + 'px'
+  el.style.overflow = 'hidden'
+  el.style.pointerEvents = 'none'
+  void el.offsetHeight // força reflow antes de transicionar
+  el.style.transition = 'height .26s ease, margin-bottom .26s ease, opacity .2s ease, transform .24s ease'
+  el.style.height = '0px'
+  if (gap) el.style.marginBottom = -gap + 'px'
+  el.style.opacity = '0'
+  el.style.transform = 'translateX(16px)'
+
+  let fim = false
+  const acabar = () => { if (fim) return; fim = true; done() }
+  el.addEventListener('transitionend', e => { if (e.propertyName === 'height') acabar() })
+  setTimeout(acabar, 340) // fallback caso o transitionend não dispare
+}
+
 function openModal(id) {
-  document.getElementById(id).classList.add('open')
+  const el = document.getElementById(id)
+  if (!el) return
+  clearTimeout(el._closeTimer)
+  el.classList.remove('closing')
+  el.classList.add('open')
 }
 function closeModal(id) {
-  document.getElementById(id).classList.remove('open')
+  const el = document.getElementById(id)
+  if (!el) return
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    el.classList.remove('open', 'closing')
+    return
+  }
+  el.classList.add('closing')
+  el._closeTimer = setTimeout(() => el.classList.remove('open', 'closing'), 170)
 }
 
 function toggleTheme() {
   const current = Store.get().user?.theme || 'dark'
   const next    = current === 'dark' ? 'light' : 'dark'
-  Store.set(d => { d.user.theme = next })
+  Store.setQuiet(d => { d.user.theme = next })
   Store.applyTheme(next)
   const btn = document.getElementById('btn-theme-toggle')
-  if (btn) btn.textContent = next === 'dark' ? '◑' : '○'
+  if (btn) {
+    btn.textContent = next === 'dark' ? '◑' : '○'
+    if (typeof btn.animate === 'function')
+      btn.animate(
+        [{ transform: 'rotate(0deg)' }, { transform: 'rotate(180deg)' }],
+        { duration: 380, easing: 'ease' }
+      )
+  }
 }
 
 function ajustarBrilho(val) {
   document.getElementById('app').style.filter = `brightness(${val}%)`
-  Store.set(d => { d.user.brilho = Number(val) })
+  Store.setQuiet(d => { d.user.brilho = Number(val) })
+}
+
+/* ── TOAST ── feedback rápido de ações ────────────── */
+let _toastTimer = null
+function toast(msg) {
+  let el = document.getElementById('toast')
+  if (!el) {
+    el = document.createElement('div')
+    el.id = 'toast'
+    document.body.appendChild(el)
+  }
+  el.textContent = msg
+  requestAnimationFrame(() => el.classList.add('show'))
+  clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 1800)
 }
 ;(async () => {
   try {

@@ -26,7 +26,7 @@ function calcPrioridade(difMateria, difAtividade, prazoIso) {
 }
 
 /* ── ESTADO ─────────────────────────────────────── */
-let _filtro = 'todas'
+let _filtro = 'pendentes'
 let _difAtv = 1
 let _difMat = 1
 const DIF_LABELS = ['', 'fácil', 'fácil+', 'médio', 'difícil', 'muito difícil']
@@ -78,21 +78,17 @@ function renderTarefas() {
   }))
 
   const filtradas = tarefas.filter(t => {
-    if (_filtro === 'pendentes')   return !t.done
     if (_filtro === 'concluídas')  return t.done
     if (['crítica','alta','média','baixa'].includes(_filtro))
       return t.prio.label === _filtro && !t.done
-    return true
-  }).sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1
-    return b.prio.rank - a.prio.rank
-  })
+    return !t.done
+  }).sort((a, b) => b.prio.rank - a.prio.rank)
 
   const cnt = {
-    total:     tarefas.length,
-    pendentes: tarefas.filter(t => !t.done).length,
-    crítica:   tarefas.filter(t => t.prio.label === 'crítica' && !t.done).length,
-    alta:      tarefas.filter(t => t.prio.label === 'alta'    && !t.done).length,
+    pendentes:  tarefas.filter(t => !t.done).length,
+    concluídas: tarefas.filter(t =>  t.done).length,
+    crítica:    tarefas.filter(t => t.prio.label === 'crítica' && !t.done).length,
+    alta:       tarefas.filter(t => t.prio.label === 'alta'    && !t.done).length,
   }
 
   el.innerHTML = `
@@ -103,9 +99,8 @@ function renderTarefas() {
 
     <!-- FILTROS -->
     <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0;">
-      ${fBtn('todas',    `todas (${cnt.total})`)}
       ${fBtn('pendentes',`pendentes (${cnt.pendentes})`)}
-      ${fBtn('concluídas','concluídas')}
+      ${fBtn('concluídas',`concluídas (${cnt.concluídas})`)}
       <div style="width:0.5px;height:16px;background:var(--border);margin:0 2px;"></div>
       ${fBtn('crítica', cnt.crítica > 0 ? `● crítica (${cnt.crítica})` : '● crítica', 'danger')}
       ${fBtn('alta',    cnt.alta    > 0 ? `● alta (${cnt.alta})`       : '● alta',    'warn')}
@@ -123,7 +118,7 @@ function renderTarefas() {
       ${filtradas.length === 0
         ? `<div class="empty-state" style="flex:1;">
              <div class="empty-state-icon">✓</div>
-             <span>nenhuma tarefa aqui</span>
+             <span>${_filtro === 'concluídas' ? 'nenhuma tarefa concluída' : 'nenhuma tarefa aqui'}</span>
            </div>`
         : filtradas.map(t => cardTarefa(t, profs, materias)).join('')
       }
@@ -235,10 +230,17 @@ function renderTarefas() {
 
   el.querySelectorAll('[data-toggle]').forEach(cb => {
     cb.addEventListener('change', () => {
-      Store.set(d => {
-        const t = d.tarefas.find(x => x.id === cb.dataset.toggle)
-        if (t) t.done = cb.checked
-      })
+      // conclui/restaura → o card sai da lista com animação
+      // e só então o estado é salvo (re-render o remove de vez)
+      animarSaida(cb.closest('[data-card-tf]'), () => {
+        Store.set(d => {
+          const t = d.tarefas.find(x => x.id === cb.dataset.toggle)
+          if (t) {
+            t.done   = cb.checked
+            t.doneEm = cb.checked ? new Date().toISOString() : ''
+          }
+        })
+      }, 12)
     })
   })
 
@@ -296,14 +298,13 @@ function cardTarefa(t, profs, materias) {
     t.prio.label === 'média'   ? 'var(--blue)'   : 'var(--gray-dim)'
 
   return `
-    <div style="
+    <div class="anim-item" data-card-tf="${t.id}" style="
       display:flex;
       background:var(--surface);
       border:0.5px solid var(--border);
       border-radius:10px;
       overflow:hidden;
-      opacity:${t.done ? '0.45' : '1'};
-      transition:border-color 0.18s,opacity 0.2s;
+      transition:border-color 0.18s;
       flex-shrink:0;
     "
     onmouseenter="this.style.borderColor='var(--border2)'"
@@ -333,16 +334,11 @@ function cardTarefa(t, profs, materias) {
 
           <!-- título + badge prioridade -->
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-            <span style="
-              font-size:14px;font-weight:500;
-              color:${t.done ? 'var(--gray)' : 'var(--white)'};
-              text-decoration:${t.done ? 'line-through' : 'none'};
-            ">${t.titulo}</span>
-            ${!t.done ? `
-              <span class="badge ${t.prio.cls}" style="font-size:9px;padding:3px 8px;">
-                ${t.prio.label}
-              </span>
-            ` : ''}
+            <span style="font-size:14px;font-weight:500;color:var(--white);">${t.titulo}</span>
+            ${t.done
+              ? `<span class="badge badge-success" style="font-size:9px;padding:3px 8px;">concluída</span>`
+              : `<span class="badge ${t.prio.cls}" style="font-size:9px;padding:3px 8px;">${t.prio.label}</span>`
+            }
           </div>
 
           <!-- descrição -->
@@ -370,6 +366,11 @@ function cardTarefa(t, profs, materias) {
               </span>
             ` : ''}
             ${t.prazo ? deadlineBadge(t.prazo) : ''}
+            ${t.done && t.doneEm ? `
+              <span style="font-size:10px;color:var(--gray-dim);white-space:nowrap;">
+                ✓ em ${fmtDate(t.doneEm.slice(0, 10))}
+              </span>
+            ` : ''}
           </div>
         </div>
 
@@ -513,6 +514,10 @@ function salvarTarefa() {
   if (!titulo) {
     tituloEl.focus()
     tituloEl.style.borderColor = 'var(--danger)'
+    tituloEl.classList.remove('shake')
+    void tituloEl.offsetWidth // reinicia a animação se repetir
+    tituloEl.classList.add('shake')
+    tituloEl.addEventListener('animationend', () => tituloEl.classList.remove('shake'), { once: true })
     setTimeout(() => { tituloEl.style.borderColor = '' }, 1200)
     return
   }
@@ -533,6 +538,7 @@ function salvarTarefa() {
       difAtividade: _difAtv,
       difMateria:   _difMat,
       done:      idx >= 0 ? d.tarefas[idx].done      : false,
+      doneEm:    idx >= 0 ? (d.tarefas[idx].doneEm || '') : '',
       criadaEm:  idx >= 0 ? d.tarefas[idx].criadaEm : new Date().toISOString()
     }
     if (idx >= 0) d.tarefas[idx] = nova
@@ -540,6 +546,7 @@ function salvarTarefa() {
   })
 
   closeModal('modal-tarefa')
+  toast('✓ tarefa salva')
 }
 
 /* ── DELETE ──────────────────────────────────────── */
@@ -552,4 +559,5 @@ function confirmarDel() {
   const id = document.getElementById('del-tf-id').value
   Store.set(d => { d.tarefas = d.tarefas.filter(x => x.id !== id) })
   closeModal('modal-del-tf')
+  toast('✓ tarefa removida')
 }

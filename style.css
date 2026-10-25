@@ -83,19 +83,34 @@ html, body {
   gap: 10px;
 }
 
-.titlebar-dots { display: flex; gap: 6px; -webkit-app-region: no-drag; }
-.dot {
-  width: 11px; height: 11px; border-radius: 50%;
-  cursor: pointer; transition: opacity 0.15s;
+/* controles da janela — maiores, à direita, com glow no hover */
+.titlebar-dots {
+  display: flex; align-items: center; gap: 8px;
+  padding-left: 12px; margin-left: 2px;
+  border-left: 0.5px solid var(--border);
+  -webkit-app-region: no-drag;
 }
-.dot:hover { opacity: 0.75; }
+.dot {
+  width: 15px; height: 15px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  border: 0.5px solid rgba(0, 0, 0, 0.35);
+  transition: opacity 0.15s, transform 0.12s, box-shadow 0.2s;
+}
+.dot svg { display: block; }
+.dot:hover  { opacity: 1; transform: scale(1.18); }
+.dot:active { transform: scale(0.85); }
+.dot-red:hover    { box-shadow: 0 0 10px #ff5f5799; }
+.dot-yellow:hover { box-shadow: 0 0 10px #febc2e99; }
+.dot-green:hover  { box-shadow: 0 0 10px #28c84099; }
 .dot-red    { background: #ff5f57; }
 .dot-yellow { background: #febc2e; }
 .dot-green  { background: #28c840; }
 
 .titlebar-title {
-  font-size: 11px; letter-spacing: 0.2em;
-  color: var(--gray); flex: 1; text-align: center;
+  font-size: 11px; letter-spacing: 0.28em;
+  color: var(--gray); flex: 1; text-align: left;
+  padding-left: 4px;
   text-transform: uppercase;
 }
 
@@ -130,16 +145,19 @@ html, body {
   display: flex; align-items: center; justify-content: center;
   font-size: 16px;
   color: var(--gray);
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
   outline: none;
   position: relative;
 }
-.sb-btn:hover { background: var(--surface2); color: var(--white); }
+.sb-btn:hover { background: var(--surface2); color: var(--white); transform: translateX(2px) scale(1.05); }
+.sb-btn:active { transform: scale(0.9); }
 .sb-btn.active {
   background: var(--blue-glow);
   color: var(--blue);
   border: 0.5px solid var(--blue-dim);
+  animation: sbPop 0.3s ease;
 }
+@keyframes sbPop { 40% { transform: scale(1.15); } }
 
 .sb-tooltip {
   position: absolute;
@@ -155,10 +173,11 @@ html, body {
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s;
+  transform: translateX(-4px);
+  transition: opacity 0.15s, transform 0.15s;
   z-index: 99;
 }
-.sb-btn:hover .sb-tooltip { opacity: 1; }
+.sb-btn:hover .sb-tooltip { opacity: 1; transform: translateX(0); }
 
 .sb-spacer { flex: 1; }
 
@@ -176,12 +195,12 @@ html, body {
   min-height: 0;
   overflow-y: auto;
   padding: 24px 28px;
-  animation: fadeIn 0.18s ease;
+  animation: fadeIn 0.24s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .page.active { display: flex; flex-direction: column; gap: 20px; }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -248,6 +267,9 @@ html, body {
 .btn.btn-primary:hover { background: var(--blue-glow2); }
 .btn.btn-danger { border-color: var(--danger); color: var(--danger); }
 .btn.btn-danger:hover { background: rgba(255,77,77,0.08); }
+.btn:active { transform: scale(0.96); }
+.btn-primary:hover { box-shadow: 0 0 10px rgba(26, 143, 255, 0.2); }
+.btn-danger:hover { box-shadow: 0 0 10px rgba(255, 77, 77, 0.15); }
 
 /* ── INPUTS ─────────────────────────────────────── */
 .input {
@@ -262,7 +284,7 @@ html, body {
   outline: none;
   transition: border-color 0.15s;
 }
-.input:focus { border-color: var(--blue-dim); }
+.input:focus { border-color: var(--blue-dim); box-shadow: 0 0 0 2px var(--blue-glow); }
 .input::placeholder { color: var(--gray-dim); }
 
 select.input { cursor: pointer; }
@@ -295,8 +317,18 @@ select.input option { background: var(--surface2); }
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(2px);
+  transition: opacity 0.16s ease;
 }
-.modal-overlay.open { display: flex; }
+.modal-overlay.open { display: flex; animation: overlayIn 0.18s ease; }
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* saída suave (aplicada pelo closeModal em app.js) */
+.modal-overlay.closing { opacity: 0; pointer-events: none; }
+.modal-overlay.closing .modal {
+  opacity: 0;
+  transform: scale(0.96) translateY(4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
 
 .modal {
   background: var(--surface);
@@ -308,11 +340,11 @@ select.input option { background: var(--surface2); }
   display: flex;
   flex-direction: column;
   gap: 14px;
-  animation: modalIn 0.18s ease;
+  animation: modalIn 0.22s cubic-bezier(0.2, 0.8, 0.3, 1.05);
 }
 @keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .modal-title {
@@ -353,4 +385,140 @@ select.input option { background: var(--surface2); }
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.empty-state-icon { font-size: 28px; opacity: 0.3; }
+.empty-state-icon {
+  font-size: 28px; opacity: 0.3;
+  animation: emptyPulse 3.2s ease-in-out infinite;
+}
+@keyframes emptyPulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(1.08); }
+}
+
+/* ══════════════════════════════════════════════════
+   ── MOTION SYSTEM ── animações leves e consistentes
+   Regras: só transform/opacity (compositor), um item
+   anima por vez nas saídas, stagger curto na entrada
+   e respeito total a prefers-reduced-motion.
+══════════════════════════════════════════════════ */
+
+/* kill-switch global de acessibilidade */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* entrada escalonada de itens de lista/grid */
+.anim-item { animation: itemIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1) backwards; }
+.anim-item:nth-child(2) { animation-delay: 0.035s; }
+.anim-item:nth-child(3) { animation-delay: 0.07s; }
+.anim-item:nth-child(4) { animation-delay: 0.105s; }
+.anim-item:nth-child(5) { animation-delay: 0.14s; }
+.anim-item:nth-child(6) { animation-delay: 0.175s; }
+.anim-item:nth-child(7) { animation-delay: 0.21s; }
+.anim-item:nth-child(8) { animation-delay: 0.245s; }
+@keyframes itemIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* feedback tátil em checkboxes */
+input[type="checkbox"] { transition: transform 0.12s ease; }
+input[type="checkbox"]:active { transform: scale(0.8); }
+input[type="checkbox"]:checked { animation: checkPop 0.18s ease; }
+@keyframes checkPop { 50% { transform: scale(1.2); } }
+
+/* toast de feedback (salvar/remover) */
+#toast {
+  position: fixed;
+  bottom: 18px; left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--surface3);
+  border: 0.5px solid var(--border2);
+  color: var(--white);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  padding: 8px 18px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 300;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* scrollbar ganha vida no hover */
+::-webkit-scrollbar-thumb { transition: background 0.2s ease; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-dim); }
+
+/* cards de página entram em cascata */
+.page.active > .card { animation: itemIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1) backwards; }
+.page.active > .card:nth-of-type(3) { animation-delay: 0.04s; }
+.page.active > .card:nth-of-type(4) { animation-delay: 0.08s; }
+.page.active > .card:nth-of-type(5) { animation-delay: 0.12s; }
+.page.active > .card:nth-of-type(6) { animation-delay: 0.16s; }
+.page.active > .card:nth-of-type(7) { animation-delay: 0.2s; }
+
+/* troca de tema suave + elevação no hover */
+#titlebar, #sidebar { transition: background 0.35s ease, border-color 0.35s ease; }
+.card {
+  transition: background 0.35s ease, border-color 0.35s ease,
+              transform 0.18s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+}
+
+/* feedback de pressão em qualquer botão */
+button { transition: transform 0.12s ease; }
+button:active { transform: scale(0.94); }
+
+/* anel de foco acessível e bonito */
+.btn:focus-visible, .sb-btn:focus-visible, .input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--blue-glow), 0 0 0 1px var(--blue-dim);
+}
+
+/* validação: treme quando o campo obrigatório está vazio */
+.shake { animation: shake 0.32s ease; }
+@keyframes shake {
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
+/* números do dashboard entram com um pulso */
+.stat-num { animation: numIn 0.32s ease; }
+@keyframes numIn {
+  from { opacity: 0; transform: translateY(3px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* entrada do app após o splash (crossfade) */
+#app { position: relative; }
+#app.in { animation: appIn 0.55s ease both; }
+@keyframes appIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* cantos HUD discretos (identidade de terminal) */
+#app::before, #app::after {
+  content: ''; position: absolute; z-index: 50; pointer-events: none;
+  width: 14px; height: 14px; opacity: 0;
+  transition: opacity 0.8s ease 0.4s;
+}
+#app.in::before, #app.in::after { opacity: 0.45; }
+#app::before {
+  top: 44px; right: 9px;
+  border-top: 1px solid var(--blue-dim);
+  border-right: 1px solid var(--blue-dim);
+}
+#app::after {
+  bottom: 9px; left: 57px;
+  border-bottom: 1px solid var(--blue-dim);
+  border-left: 1px solid var(--blue-dim);
+}

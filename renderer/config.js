@@ -38,12 +38,12 @@ function renderConfig() {
       <div style="display:flex;flex-direction:column;gap:10px;max-width:480px;">
         <div style="font-size:11px;color:var(--gray);line-height:1.8;">
           Gratuito, sem cartão, sem restrição de idade.<br/>
-          <span style="color:var(--blue);">1.</span> Acesse <strong style="color:var(--white);">dashboard.cohere.com</strong><br/>
-          <span style="color:var(--blue);">2.</span> Crie uma conta → <strong style="color:var(--white);">API Keys → New Trial Key</strong><br/>
+          <span style="color:var(--blue);">1.</span> Acesse <strong style="color:var(--white);">openrouter.ai</strong><br/>
+          <span style="color:var(--blue);">2.</span> Crie uma conta → <strong style="color:var(--white);">API Keys → Create Key</strong><br/>
           <span style="color:var(--blue);">3.</span> Cole abaixo a chave gerada
         </div>
         <div class="form-row">
-          <label class="form-label">Cohere API Key</label>
+          <label class="form-label">OpenRouter API Key</label>
           <div style="display:flex;gap:8px;">
             <input id="cfg-gemini-key" class="input" type="password"
               value="${data.user.geminiKey || ''}"

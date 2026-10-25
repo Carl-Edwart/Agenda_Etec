@@ -102,12 +102,17 @@ function renderHome() {
     btn.addEventListener('click', () => navigate(btn.dataset.nav))
   })
 
-  // bind task toggle
+  // bind task toggle — conclui e a linha sai da tela com animação
   el.querySelectorAll('[data-task-toggle]').forEach(cb => {
     cb.addEventListener('change', () => {
-      Store.set(d => {
-        const t = d.tarefas.find(x => x.id === cb.dataset.taskToggle)
-        if (t) t.done = cb.checked
+      animarSaida(cb.closest('[data-task-row]'), () => {
+        Store.set(d => {
+          const t = d.tarefas.find(x => x.id === cb.dataset.taskToggle)
+          if (t) {
+            t.done   = cb.checked
+            t.doneEm = cb.checked ? new Date().toISOString() : ''
+          }
+        })
       })
     })
   })
@@ -116,13 +121,13 @@ function renderHome() {
 function statCard(label, value, sub, navTo, accent = '') {
   const color = accent === 'danger' && value > 0 ? 'var(--danger)' : 'var(--blue)'
   return `
-    <div class="card" style="cursor:pointer;transition:border-color 0.15s;"
+    <div class="card anim-item" style="cursor:pointer;transition:border-color 0.15s,transform 0.18s,box-shadow 0.2s;"
          data-nav="${navTo}"
          onmouseenter="this.style.borderColor='var(--blue-dim)'"
          onmouseleave="this.style.borderColor='var(--border)'"
          onclick="navigate('${navTo}')">
       <div style="font-size:10px;letter-spacing:0.13em;text-transform:uppercase;color:var(--gray);margin-bottom:8px;">${label}</div>
-      <div style="font-size:28px;font-weight:500;color:${color};line-height:1;">${value}</div>
+      <div class="stat-num" style="font-size:28px;font-weight:500;color:${color};line-height:1;">${value}</div>
       <div style="font-size:10px;color:var(--gray);margin-top:4px;letter-spacing:0.08em;">${sub}</div>
     </div>
   `
@@ -130,7 +135,7 @@ function statCard(label, value, sub, navTo, accent = '') {
 
 function navCard(icon, label, page) {
   return `
-    <div class="card" data-nav="${page}" style="text-align:center;cursor:pointer;padding:16px 8px;transition:all 0.15s;"
+    <div class="card anim-item" data-nav="${page}" style="text-align:center;cursor:pointer;padding:16px 8px;transition:all 0.15s;"
          onmouseenter="this.style.borderColor='var(--blue-dim)';this.style.background='var(--blue-glow)'"
          onmouseleave="this.style.borderColor='var(--border)';this.style.background='var(--surface)'">
       <div style="font-size:20px;margin-bottom:6px;">${icon}</div>
@@ -151,7 +156,7 @@ function taskRow(t, profs, materias) {
   const matCor   = mat?.cor   || '#1a8fff'
 
   return `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+    <div class="anim-item" data-task-row="${t.id}" style="display:flex;align-items:center;gap:10px;padding:8px 0;
                 border-bottom:0.5px solid var(--surface2);">
       <input type="checkbox" ${t.done ? 'checked' : ''} data-task-toggle="${t.id}"
              style="accent-color:var(--blue);cursor:pointer;width:14px;height:14px;">

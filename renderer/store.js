@@ -28,6 +28,13 @@ const Store = (() => {
     notify()
   }
 
+  // persiste SEM re-render (ex: slider de brilho — evita
+  // reconstruir a página inteira a cada tick do input)
+  function setQuiet(updater) {
+    updater(_data)
+    save()
+  }
+
   function subscribe(fn) { _listeners.push(fn) }
 
   function notify() { _listeners.forEach(fn => fn(_data)) }
@@ -37,5 +44,5 @@ const Store = (() => {
     _data.user.theme = theme
   }
 
-  return { load, get, set, subscribe, applyTheme }
+  return { load, get, set, setQuiet, subscribe, applyTheme }
 })()

@@ -257,7 +257,7 @@ function tplProfessores(profs, mats) {
         const pendentes = tarefas.filter(t => !t.done).length
 
         return `
-          <div style="
+          <div class="anim-item" style="
             display:flex;
             background:var(--surface);
             border:0.5px solid var(--border);
@@ -399,7 +399,7 @@ function tplMaterias(mats, profs, tarefas) {
         const pendentes = tfMat.filter(t => !t.done).length
 
         return `
-          <div style="
+          <div class="anim-item" style="
             background:var(--surface);border:0.5px solid var(--border);
             border-radius:8px;overflow:hidden;transition:border-color 0.15s;
           "
