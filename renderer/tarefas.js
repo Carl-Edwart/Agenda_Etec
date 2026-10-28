@@ -31,6 +31,16 @@ let _difAtv = 1
 let _difMat = 1
 const DIF_LABELS = ['', 'fácil', 'fácil+', 'médio', 'difícil', 'muito difícil']
 
+// usado pelo clique das notificações nativas
+function abrirTarefasPendentes() {
+  _filtro = 'pendentes'
+  navigate('tarefas')
+  requestAnimationFrame(() => {
+    const lista = document.getElementById('lista-tarefas')
+    if (lista) lista.scrollTop = 0
+  })
+}
+
 /* ── GERA OPTIONS PROFESSOR×MATÉRIA ────────────── */
 function tfProfOptions() {
   const profs    = Store.get().professores || []

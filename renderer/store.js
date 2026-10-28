@@ -1,7 +1,7 @@
 /* ── STORE ── global state + persistence ─────────── */
 const Store = (() => {
   let _data = {
-    user: { name: 'Usuário', theme: 'dark' },
+    user: { name: 'Usuário', theme: 'dark', notificacoes: true },
     materias: [],
     professores: [],
     tarefas: [],

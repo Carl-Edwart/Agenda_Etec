@@ -6,5 +6,11 @@ contextBridge.exposeInMainWorld('api', {
   minimize:     ()      => ipcRenderer.invoke('minimize'),
   maximize:     ()      => ipcRenderer.invoke('maximize'),
   close:        ()      => ipcRenderer.invoke('close'),
-  openExternal: (url)   => ipcRenderer.invoke('open-external', url)
+  openExternal: (url)   => ipcRenderer.invoke('open-external', url),
+  testNotification: ()  => ipcRenderer.invoke('test-notification'),
+
+  // clique em uma notificação nativa → abre a página pedida
+  onNavigate: (callback) => {
+    ipcRenderer.on('navigate', (_event, page) => callback(page))
+  }
 })

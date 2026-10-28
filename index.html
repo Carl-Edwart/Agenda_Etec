@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Agenda</title>
+  <title>Agenda Pessoal</title>
+  <link rel="icon" type="image/png" href="assents/agenda_icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,7 +13,7 @@
 <div id="splash">
   <div id="splash-inner">
     <div id="splash-logo">
-      <div id="splash-icon">⌂</div>
+      <div id="splash-icon"><img src="assents/agenda_icon.png" alt="Agenda Pessoal" draggable="false" /></div>
       <div id="splash-name">AGENDA<span>PESSOAL</span></div>
     </div>
     <div id="splash-bar-wrap"><div id="splash-bar"></div></div>
@@ -51,10 +52,22 @@
 
 #splash-icon {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
   font-size: 38px;
   color: #1a8fff;
   text-shadow: 0 0 18px rgba(26,143,255,0.55);
   animation: splashPulse 2.4s ease-in-out infinite;
+}
+#splash-icon img {
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  box-shadow: 0 0 24px rgba(26,143,255,0.35);
 }
 #splash-icon::after {
   content: '';
@@ -149,6 +162,7 @@
 
   <!-- TITLEBAR -->
   <div id="titlebar">
+    <img class="titlebar-icon" src="assents/agenda_icon.png" alt="" draggable="false" />
     <div class="titlebar-title">AGENDA PESSOAL <span class="cursor"></span></div>
     <div class="titlebar-right" style="-webkit-app-region:no-drag;display:flex;align-items:center;gap:10px;">
 

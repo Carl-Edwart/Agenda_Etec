@@ -3,6 +3,7 @@
 function renderConfig() {
   const el   = document.getElementById('page-config')
   const data = Store.get()
+  const notifAtivas = data.user.notificacoes !== false
 
   el.innerHTML = `
     <div class="page-header">
@@ -29,6 +30,28 @@ function renderConfig() {
       <div style="display:flex;gap:12px;">
         ${themeOption('dark',  '◑', 'dark — terminal')}
         ${themeOption('light', '○', 'light — clean')}
+      </div>
+    </div>
+
+    <!-- notificações -->
+    <div class="card">
+      <div class="card-label">notificações</div>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:520px;">
+        <div style="font-size:11px;color:var(--gray);line-height:1.8;">
+          lembretes nativos de prazo:
+          <strong style="color:var(--white);">hoje</strong>,
+          <strong style="color:var(--white);">amanhã</strong>,
+          <strong style="color:var(--white);">em 2 dias</strong> e
+          <strong style="color:var(--white);">atrasadas</strong>.
+          Os avisos aparecem com o app aberto, mesmo minimizado.
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button class="btn ${notifAtivas ? 'btn-primary' : ''}" id="btn-notif-toggle">
+            ${notifAtivas ? '✓ lembretes ativos' : '✕ lembretes desativados'}
+          </button>
+          <button class="btn" id="btn-notif-test">testar notificação</button>
+          <span id="cfg-notif-status" style="font-size:10px;color:var(--gray);letter-spacing:0.08em;"></span>
+        </div>
       </div>
     </div>
 
@@ -83,6 +106,29 @@ function renderConfig() {
       Store.applyTheme(t)
       renderConfig()
     })
+  })
+
+  el.querySelector('#btn-notif-toggle')?.addEventListener('click', () => {
+    const ativas = Store.get().user.notificacoes !== false
+    Store.set(d => { d.user.notificacoes = !ativas })
+    toast(ativas ? 'notificações desativadas' : 'notificações ativadas')
+  })
+
+  el.querySelector('#btn-notif-test')?.addEventListener('click', async () => {
+    const status = document.getElementById('cfg-notif-status')
+    try {
+      const res = await window.api.testNotification()
+      if (status) {
+        status.textContent = res.ok ? '✓ enviada' : (res.motivo === 'sem-suporte' ? '✕ sem suporte no sistema' : '✕ falhou')
+        status.style.color = res.ok ? 'var(--success)' : 'var(--danger)'
+      }
+    } catch (e) {
+      if (status) {
+        status.textContent = '✕ falhou'
+        status.style.color = 'var(--danger)'
+      }
+    }
+    setTimeout(() => { if (status) status.textContent = '' }, 3000)
   })
 }
 

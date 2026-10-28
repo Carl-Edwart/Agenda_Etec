@@ -4,6 +4,17 @@ const PAGES = ['home', 'tarefas', 'calendario', 'professores', 'estudos', 'horar
 
 let _currentPage = 'home'
 
+// clique em uma notificação nativa → abre as tarefas pendentes
+if (window.api?.onNavigate) {
+  window.api.onNavigate(page => {
+    if (page === 'tarefas' && typeof abrirTarefasPendentes === 'function') {
+      abrirTarefasPendentes()
+      return
+    }
+    navigate(page)
+  })
+}
+
 function navigate(page) {
   if (!PAGES.includes(page)) return
 

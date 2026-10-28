@@ -107,6 +107,13 @@ html, body {
 .dot-yellow { background: #febc2e; }
 .dot-green  { background: #28c840; }
 
+.titlebar-icon {
+  width: 16px; height: 16px;
+  border-radius: 4px;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
 .titlebar-title {
   font-size: 11px; letter-spacing: 0.28em;
   color: var(--gray); flex: 1; text-align: left;
